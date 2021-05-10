@@ -9,6 +9,8 @@ import { Group } from "three";
 import { ClientUi } from "./client-ui";
 import { SoundPlayer } from "./sound-player";
 import { GameUi } from './game-ui';
+import { ThingType } from "./types";
+import { Thing } from "./thing";
 
 export class Game {
   private assetLoader: AssetLoader;
@@ -156,6 +158,18 @@ export class Game {
         this.settings.perspective.checked = !this.settings.perspective.checked;
         this.updateSettings();
         break;
+      case 'c':
+        const playerNo = this.client.seats.get(this.client.playerId())?.seat;
+        const myThings: Array<Thing> = [];
+        this.world.slots.forEach((slot) => {
+          if (slot.type === ThingType.TILE && slot.thing != null && slot.thing.claimedBy === playerNo) {
+            myThings.push(slot.thing);
+          }
+        });
+        const exportable = myThings
+          .map((thing) => `${this.objectView.translateThing(thing)}:${thing.slot.name}:${thing.rotationIndex}`)
+          .join('+');
+        console.log(exportable);
     }
   }
 
