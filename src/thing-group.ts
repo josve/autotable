@@ -201,6 +201,67 @@ if (vUv.x <= ${TILE_DU} && vUv.y <= ${TILE_DV}) {
 
     return mesh;
   }
+
+  typeIndexToString(typeIndex: number): string {
+    if (typeIndex < 0) {
+      return '';
+    }
+    else if (typeIndex <= 8) {
+      // Sign 1-8
+      return `S${typeIndex + 1}`;
+    } else if (typeIndex <= 17) {
+      // Coin 1-8
+      return `C${typeIndex - 8}`;
+    } else if (typeIndex <= 26) {
+      // Bamboo 1-8
+      return `B${typeIndex - 17}`;
+    }
+    switch (typeIndex) {
+      case 27:
+        return 'East';
+      case 28:
+        return 'South';
+      case 29:
+        return 'West';
+      case 30:
+        return 'North';
+      case 31:
+        // Dragon White
+        return 'DW';
+      case 32:
+        // Dragon Green 
+        return 'DG';
+      case 33:
+        // Dragon Red 
+        return 'DR';
+      case 34:
+        // Sign 5 Red
+        return 'S5R';
+      case 35:
+        // Coin 5 Red
+        return 'C5R';
+      case 36:        
+        // Bamboo 5 Red
+        return 'B5R';
+      case 37:
+      case 38:
+      case 39:
+        // Sides and back of tile
+        return ''
+      case 40:
+      case 41:
+      case 42:
+      case 43:
+      case 44:
+      case 45:
+      case 46:
+      case 47:
+        // Flowers
+        return 'F';
+      default:
+        return '';
+    }
+  }
 }
 
 export class StickThingGroup extends InstancedThingGroup {

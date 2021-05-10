@@ -6,6 +6,7 @@ import { AssetLoader } from "./asset-loader";
 import { Center } from "./center";
 import { ThingParams, ThingGroup, TileThingGroup, StickThingGroup, MarkerThingGroup } from "./thing-group";
 import { ThingType, Place } from "./types";
+import { Thing } from "./thing";
 
 export interface Render {
   type: ThingType;
@@ -66,6 +67,11 @@ export class ObjectView {
     this.dropShadowProto.name = 'dropShadow';
 
     this.addStatic();
+  }
+
+  translateThing(thing: Thing): string {
+    const tileGroup = this.thingGroups.get(ThingType.TILE) as TileThingGroup;
+    return tileGroup.typeIndexToString(thing.typeIndex);
   }
 
   replaceThings(params: Map<number, ThingParams>): void {
