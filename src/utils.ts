@@ -97,7 +97,7 @@ export function compareZYX(a: Vector3, b: Vector3): number {
     return a.z - b.z;
   }
   if (a.y !== b.y) {
-    return a.y - b.z;
+    return a.y - b.y;
   }
   if (a.x !== b.x) {
     return a.x - b.x;

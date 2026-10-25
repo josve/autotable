@@ -79,7 +79,7 @@ export class BaseClient {
   }
 
   private send(message: Message): void {
-    if (!this.open) {
+    if (!this.open()) {
       return;
     }
     // console.log('send', message);
