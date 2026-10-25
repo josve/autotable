@@ -1,19 +1,17 @@
 {
   "name": "autotable",
   "version": "1.0.0",
-  "main": "index.js",
   "author": "Paweł Marczewski <pwmarcz@gmail.com>",
   "license": "MIT",
   "devDependencies": {
     "@types/events": "^3.0.3",
-    "@types/jest": "^26.0.24",
+    "@types/jest": "^30",
     "@types/jquery": "^3.5.34",
     "@types/qs": "^6.9.18",
     "@types/ws": "^8",
     "eslint": "^10",
-    "express": "^4.22.1",
     "globals": "^17.13.0",
-    "parcel": "^1.12.4",
+    "parcel": "^2",
     "typescript": "^6",
     "typescript-eslint": "^8"
   },
@@ -29,11 +27,5 @@
   "scripts": {
     "start": "cd server && node dist/index.js",
     "postinstall": "cd server && tsc"
-  },
-  "resolutions": {
-    "@babel/preset-env": "7.13.8"
-  },
-  "overrides": {
-    "@babel/preset-env": "7.13.8"
   }
 }

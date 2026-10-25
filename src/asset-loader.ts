@@ -1,8 +1,3 @@
-// @ts-ignore
-import jpg from '../img/*.jpg';
-// @ts-ignore
-import glbModels from '../img/models.auto.glb';
-
 import { Texture, Mesh, TextureLoader, Material, LinearEncoding,
    MeshStandardMaterial, MeshLambertMaterial, PlaneGeometry, RepeatWrapping } from 'three';
 import { GLTFLoader, GLTF } from 'three/examples/jsm/loaders/GLTFLoader';
@@ -53,8 +48,8 @@ export class AssetLoader {
 
   loadAll(): Promise<void> {
     return Promise.all([
-      this.loadTexture(jpg['table'], 'table'),
-      this.loadModels(glbModels),
+      this.loadTexture(new URL('../img/table.jpg', import.meta.url).href, 'table'),
+      this.loadModels(new URL('../img/models.auto.glb', import.meta.url).href),
       (document as any).fonts.load('40px "Segment7Standard"'),
     ]).then(() => {
       this.textures.table.wrapS = RepeatWrapping;

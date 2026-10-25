@@ -2,6 +2,7 @@ node_modules/
 dist/
 build/
 .cache/
+.parcel-cache/
 *.blend1
 .vscode/
 .DS_Store
