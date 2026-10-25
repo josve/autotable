@@ -79,7 +79,7 @@ export namespace Conditions {
   }
 
   export function equals(a: Conditions, b: Conditions): boolean {
-    return a.gameType === b.gameType && a.back === b.back && a.fives === b.fives;
+    return a.gameType === b.gameType && a.back === b.back && a.fives === b.fives && a.points === b.points;
   }
 
   export function describe(ts: Conditions): string {

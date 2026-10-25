@@ -159,8 +159,10 @@ export class MainView {
         this.camera.position.add(dist);
       }
       if (zoom > 0 && mouse2) {
-        this.camera.position.x += mouse2.x * zoom * World.WIDTH * 0.6;
-        this.camera.position.y += mouse2.y * zoom * World.WIDTH * 0.6;
+        // NOTE: with multiplier larger than 0.5 it's possible to look at left
+        // or right player's tiles!
+        this.camera.position.x += mouse2.x * zoom * World.WIDTH * 0.5;
+        this.camera.position.y += mouse2.y * zoom * World.WIDTH * 0.5;
       }
     }
   }
@@ -228,6 +230,10 @@ export class MainView {
         renderWidth = Math.floor(this.width);
         renderHeight = Math.floor(this.width / RATIO);
       }
+      // Odd dimensions make Chrome render a blurry picture.
+      renderWidth -= renderWidth % 2;
+      renderHeight -= renderHeight % 2;
+
       this.main.style.width = `${renderWidth}px`;
       this.main.style.height = `${renderHeight}px`;
       this.renderer.setSize(renderWidth, renderHeight);

@@ -98,7 +98,10 @@ attribute vec3 offset;
     material.defines = material.defines ?? {};
     material.defines.THING_TYPE = origMesh.name;
 
-    const data = new Float32Array(params.length * 3);
+    // Weird bug: in Firefox Android, the last instance is not being rendered.
+    const extra = 1;
+
+    const data = new Float32Array((params.length + extra) * 3);
     for (let i = 0; i < params.length; i++) {
       const v = this.getOffset(params[i].typeIndex);
       data[3 * i] = v.x;
@@ -108,7 +111,14 @@ attribute vec3 offset;
 
     const geometry = (origMesh.geometry as BufferGeometry).clone();
     geometry.setAttribute('offset', new InstancedBufferAttribute(data, 3));
-    const instancedMesh = new InstancedMesh(geometry, material, params.length);
+    const instancedMesh = new InstancedMesh(geometry, material, params.length + extra);
+    // The bounding sphere is computed once from the initial instance matrices,
+    // so the mesh would be wrongly culled after things move (e.g. on zoom).
+    instancedMesh.frustumCulled = false;
+    for (let i = 0; i < extra; i++) {
+      instancedMesh.setMatrixAt(params.length + i, this.zero);
+    }
+    instancedMesh.instanceMatrix.needsUpdate = true;
     return instancedMesh;
   }
 

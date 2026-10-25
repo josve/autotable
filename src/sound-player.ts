@@ -34,7 +34,7 @@ class Channel {
     if (this.playing) {
       return;
     }
-    this.element.src = url;
+    this.setSource(url);
     this.element.muted = true;
     const done = (): void => {
       this.element.muted = false;
@@ -46,8 +46,17 @@ class Channel {
     }, done);
   }
 
+  // Firefox fetches the file again whenever src is assigned, so only do it
+  // when the sound changes.
+  private setSource(url: string): void {
+    if (this.element.src !== url) {
+      this.element.src = url;
+    }
+  }
+
   play(url: string): void {
-    this.element.src = url;
+    this.setSource(url);
+    this.element.currentTime = 0;
     this.element.play();
     this.playing = true;
   }

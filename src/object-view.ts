@@ -149,6 +149,8 @@ export class ObjectView {
         thing.thingIndex, thing.place.position, thing.place.rotation);
 
       const material = obj.material as MeshLambertMaterial;
+      const wasTransparent = material.transparent;
+
       material.emissive.setHex(0);
       material.color.setHex(0xeeeeee);
       material.transparent = false;
@@ -176,6 +178,11 @@ export class ObjectView {
         material.depthTest = false;
         obj.position.z += 1;
         obj.renderOrder = 1;
+      }
+
+      // Changing Material.transparent after its initial use requires needsUpdate.
+      if (material.transparent !== wasTransparent) {
+        material.needsUpdate = true;
       }
 
       obj.updateMatrix();

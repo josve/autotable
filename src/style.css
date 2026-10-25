@@ -175,15 +175,25 @@ html, body {
 
 #center { display: none; }
 
-#deal { position: relative; }
+#deal, .kick {
+    position: relative;
+    /* Press and hold must not turn into scrolling or a callout on touch devices */
+    touch-action: none;
+    -webkit-touch-callout: none;
+}
 .btn-progress {
     position: absolute;
     top: 0;
     left: 0;
     bottom: 0;
     width: 0%;
+    transition: width 1s;
+}
+#deal .btn-progress {
     background: #fff2ca;
-    transition: width 600ms;
+}
+.kick .btn-progress {
+    background: rgb(90, 98, 104);
 }
 .btn-progress-text {
     position: relative;
@@ -205,6 +215,12 @@ html, body {
     bottom: 20px;
     left: 50%;
     transform: translate(-50%, 0);
+}
+@media (any-pointer: coarse) {
+    /* Keep clear of the touch controls bar */
+    .seat-button-0 {
+        bottom: calc(96px + env(safe-area-inset-bottom));
+    }
 }
 .seat-button-1 {
     top: 50%;
