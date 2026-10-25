@@ -2,7 +2,6 @@ import { Scene, Camera, WebGLRenderer, Vector2, Vector3, Group, AmbientLight, Di
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
-import Stats from 'three/examples/jsm/libs/stats.module.js';
 
 import { World } from './world';
 
@@ -13,7 +12,6 @@ const MSAA_SAMPLES = 4;
 
 export class MainView {
   private main: HTMLElement;
-  private stats: Stats;
   private perspective = true;
   private antialias = true;
 
@@ -52,12 +50,6 @@ export class MainView {
 
     this.setupLights();
     this.setupRendering();
-
-    this.stats = new Stats();
-    this.stats.dom.style.left = 'auto';
-    this.stats.dom.style.right = '0';
-    const full = document.getElementById('full')!;
-    full.appendChild(this.stats.dom);
   }
 
   private setupLights(): void {
@@ -211,7 +203,6 @@ export class MainView {
 
   render(): void {
     this.composer.render();
-    this.stats.update();
   }
 
   updateViewport(): void {
