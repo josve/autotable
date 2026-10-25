@@ -34,6 +34,7 @@ export class Game {
   private lookDown = new Animation(150);
   private zoom = new Animation(150);
   private lookDownState: number = 0;
+  private zoomState: number = 0;
 
   keys: Set<string> = new Set();
 
@@ -68,6 +69,38 @@ export class Game {
       const element = (this.settings as any)[key] as HTMLInputElement;
       element.addEventListener('change', this.updateSettings.bind(this));
     }
+    this.setupTouchControls();
+  }
+
+  // On-screen buttons replacing keyboard shortcuts, for touch devices
+  private setupTouchControls(): void {
+    const buttons: Record<string, () => void> = {
+      'touch-flip': () => this.world.onFlip(1),
+      'touch-flip-back': () => this.world.onFlip(-1),
+      'touch-look-down': () => this.toggleLookDown(),
+      'touch-zoom-in': () => this.toggleZoom(1),
+      'touch-zoom-out': () => this.toggleZoom(-1),
+      'touch-toggle-sidebar': () => {
+        document.getElementById('sidebar')!.classList.toggle('hidden');
+      },
+    };
+    for (const id in buttons) {
+      const button = document.getElementById(id)!;
+      button.addEventListener('click', buttons[id]);
+    }
+  }
+
+  private toggleLookDown(): void {
+    this.lookDownState = 1 - this.lookDownState;
+    this.lookDown.start(this.lookDownState);
+    document.getElementById('touch-look-down')!.classList.toggle('active', this.lookDownState === 1);
+  }
+
+  private toggleZoom(direction: number): void {
+    this.zoomState = this.zoomState === direction ? 0 : direction;
+    this.zoom.start(this.zoomState);
+    document.getElementById('touch-zoom-in')!.classList.toggle('active', this.zoomState === 1);
+    document.getElementById('touch-zoom-out')!.classList.toggle('active', this.zoomState === -1);
   }
 
   private updateSettings(): void {
@@ -103,7 +136,7 @@ export class Game {
 
     this.world.updateView();
     this.mainView.updateViewport();
-    this.mainView.updateCamera(this.world.seat, this.lookDown.pos, this.zoom.pos, this.mouseUi.mouse2);
+    this.mainView.updateCamera(this.world.seat, this.lookDown.pos, this.zoom.pos, this.mouseUi.zoomTarget());
     this.mainView.updateOutline(this.objectView.selectedObjects);
     this.mouseUi.setCamera(this.mainView.camera);
     this.mouseUi.updateObjects();
@@ -149,8 +182,7 @@ export class Game {
         this.zoom.start(-1);
         break;
       case 'q':
-        this.lookDownState = 1 - this.lookDownState;
-        this.lookDown.start(this.lookDownState);
+        this.toggleLookDown();
         break;
       case 'p':
         this.settings.perspective.checked = !this.settings.perspective.checked;

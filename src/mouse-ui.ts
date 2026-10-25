@@ -2,6 +2,10 @@ import { Raycaster, Camera, Group, Mesh, BoxGeometry, PlaneGeometry, Vector3, Ve
 import { World } from "./world";
 import { SelectionBox } from "./selection-box";
 
+// Max distance (in pixels) a finger can move for a touch to count as a tap
+const TAP_DISTANCE = 10;
+const DOUBLE_TAP_TIME = 400;
+
 export class MouseUi {
   private world: World;
   private mainGroup: Group;
@@ -26,6 +30,11 @@ export class MouseUi {
   private dragStart3: Vector3 | null = null;
 
   sticky: boolean = false;
+
+  private lastTouch2: Vector2 | null = null;
+  private touchStart2: Vector2 | null = null;
+  private touchHovered: any = null;
+  private lastTap: { id: any; time: number } | null = null;
 
   constructor(world: World, mainGroup: Group) {
     this.world = world;
@@ -70,31 +79,67 @@ export class MouseUi {
   }
 
   private setupEvents(): void {
-    this.main.addEventListener('mousemove', this.onMouseMove.bind(this));
-    this.main.addEventListener('mouseleave', this.onMouseLeave.bind(this));
-    this.main.addEventListener('mousedown', this.onMouseDown.bind(this));
+    this.main.addEventListener('pointermove', this.onPointerMove.bind(this));
+    this.main.addEventListener('pointerleave', this.onPointerLeave.bind(this));
+    this.main.addEventListener('pointerdown', this.onPointerDown.bind(this));
     this.main.addEventListener('contextmenu', e => e.preventDefault());
-    window.addEventListener('mouseup', this.onMouseUp.bind(this));
+    window.addEventListener('pointerup', this.onPointerUp.bind(this));
+    window.addEventListener('pointercancel', this.onPointerUp.bind(this));
   }
 
-  private onMouseMove(event: MouseEvent): void {
-    const w = this.main.clientWidth;
-    const h = this.main.clientHeight;
+  private setMouse2(event: PointerEvent): void {
+    const rect = this.main.getBoundingClientRect();
     if (this.mouse2 === null) {
       this.mouse2 = new Vector2(0, 0);
     }
-    this.mouse2.x = event.offsetX / w * 2 - 1;
-    this.mouse2.y = -event.offsetY / h * 2 + 1;
+    this.mouse2.x = (event.clientX - rect.left) / rect.width * 2 - 1;
+    this.mouse2.y = -(event.clientY - rect.top) / rect.height * 2 + 1;
+    if (event.pointerType !== 'mouse') {
+      this.lastTouch2 = this.mouse2.clone();
+    }
+  }
+
+  // Point to zoom towards. Touch has no hover, so use the last touch position.
+  zoomTarget(): Vector2 | null {
+    return this.mouse2 ?? this.lastTouch2;
+  }
+
+  private onPointerMove(event: PointerEvent): void {
+    if (!event.isPrimary) {
+      return;
+    }
+    // Touch: track only while the finger is down
+    if (event.pointerType !== 'mouse' && this.touchStart2 === null) {
+      return;
+    }
+    this.setMouse2(event);
 
     this.update();
   }
 
-  private onMouseLeave(): void {
+  private onPointerLeave(event: PointerEvent): void {
+    if (!event.isPrimary || event.pointerType !== 'mouse') {
+      return;
+    }
     this.mouse2 = null;
     this.update();
   }
 
-  private onMouseDown(event: MouseEvent): void {
+  private onPointerDown(event: PointerEvent): void {
+    if (!event.isPrimary) {
+      return;
+    }
+
+    let hovered = null;
+    if (event.pointerType !== 'mouse') {
+      // No hover on touch: find out what is under the finger first.
+      this.main.setPointerCapture(event.pointerId);
+      this.touchStart2 = new Vector2(event.clientX, event.clientY);
+      this.setMouse2(event);
+      hovered = this.update();
+      this.touchHovered = hovered;
+    }
+
     if (this.mouse2 === null || this.mouse3 === null) {
       return;
     }
@@ -117,14 +162,49 @@ export class MouseUi {
     }
   }
 
-  private onMouseUp(event: MouseEvent): void {
-    if (event.button === 0) {
+  private onPointerUp(event: PointerEvent): void {
+    if (!event.isPrimary) {
+      return;
+    }
+
+    if (event.button === 0 || event.type === 'pointercancel') {
       this.selectStart3 = null;
 
       if (!this.sticky) {
         this.dragStart3 = null;
         this.world.onDragEnd();
       }
+    }
+
+    if (event.pointerType !== 'mouse' && this.touchStart2 !== null) {
+      const dist = this.touchStart2.distanceTo(new Vector2(event.clientX, event.clientY));
+      const tapped = this.touchHovered;
+      this.touchStart2 = null;
+      this.touchHovered = null;
+
+      if (event.type === 'pointerup' && dist < TAP_DISTANCE && tapped !== null &&
+          this.dragStart3 === null) {
+        this.onTap(tapped);
+      }
+
+      this.mouse2 = null;
+      this.update();
+    }
+  }
+
+  // Touch has no hover, so a tap selects a single thing, and a double tap
+  // flips it.
+  private onTap(id: any): void {
+    const now = new Date().getTime();
+    const doubleTap = this.lastTap !== null && this.lastTap.id === id &&
+      now - this.lastTap.time < DOUBLE_TAP_TIME;
+
+    this.world.onSelect([id]);
+    if (doubleTap) {
+      this.world.onFlip(1);
+      this.lastTap = null;
+    } else {
+      this.lastTap = { id, time: now };
     }
   }
 
@@ -139,12 +219,13 @@ export class MouseUi {
     this.currentObjects = this.prepareObjects();
   }
 
-  update(): void {
+  // Returns the id of the thing under the pointer, if any.
+  update(): any {
     if (!this.camera || !this.selectionBox || this.mouse2 === null) {
       this.world.onHover(null);
       this.world.onMove(null);
       this.selection.style.visibility = 'hidden';
-      return;
+      return null;
     }
     this.raycaster.setFromCamera(this.mouse2, this.camera);
 
@@ -185,6 +266,7 @@ export class MouseUi {
       }
     }
     this.world.onMove(this.mouse3);
+    return hovered;
   }
 
   updateCursors(): void {
