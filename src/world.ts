@@ -78,7 +78,7 @@ export class World {
     const match = this.client.match.get(0) ?? { dealer: 0, honba: 0, conditions: Conditions.initial()};
     match.honba = (match.honba + 1) % 8;
     this.client.match.set(0, match);
-  };
+  }
 
   private onSeat(): void {
     this.seat = this.client.seat;

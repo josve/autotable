@@ -97,7 +97,7 @@ export interface MouseInfo {
 export enum SoundType {
   DISCARD = 'DISCARD',
   STICK = 'STICK',
-};
+}
 
 export interface SoundInfo {
   type: SoundType;
