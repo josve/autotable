@@ -33,9 +33,5 @@
   "resolutions": {
     "@types/node": "22.9.3",
     "@babel/preset-env": "7.13.8"
-  },
-  "overrides": {
-    "@types/node": "22.9.3",
-    "@babel/preset-env": "7.13.8"
   }
 }

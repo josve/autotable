@@ -20,8 +20,5 @@
   },
   "resolutions": {
     "@types/node": "22.9.3"
-  },
-  "overrides": {
-    "@types/node": "22.9.3"
   }
 }
