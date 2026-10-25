@@ -5,3 +5,4 @@ build/
 *.blend1
 .vscode/
 .DS_Store
+package-lock.json
