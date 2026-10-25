@@ -4,10 +4,11 @@
   "main": "dist/index.js",
   "license": "MIT",
   "devDependencies": {
-    "@types/jest": "^26.0.24",
-    "jest": "^26.6.3",
-    "ts-jest": "^26.5.6",
-    "typescript": "^4.9.5"
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.20.5",
+    "jest": "^30.5.2",
+    "ts-jest": "^29.4.15",
+    "typescript": "^6.0.3"
   },
   "scripts": {
     "build": "tsc",
@@ -15,10 +16,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "@types/ws": "^7.4.7",
-    "ws": "^7.5.10"
-  },
-  "resolutions": {
-    "@types/node": "22.9.3"
+    "@types/ws": "^8.18.2",
+    "ws": "^8.22.0"
   }
 }

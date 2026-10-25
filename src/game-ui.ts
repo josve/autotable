@@ -1,4 +1,4 @@
-import $ from 'jquery';
+import { Collapse } from 'bootstrap';
 import { Client } from "./client";
 import { World } from "./world";
 import { DealType, Fives, GameType, Conditions, Points, GAME_TYPES } from './types';
@@ -20,7 +20,7 @@ export class GameUi {
     setupDesc: HTMLElement;
     fives: HTMLSelectElement;
     points: HTMLSelectElement;
-  }
+  };
 
   constructor(client: Client, world: World) {
     this.client = client;
@@ -73,7 +73,7 @@ export class GameUi {
     // Hack for settings menu
     const doNotClose = ['LABEL', 'SELECT', 'OPTION'];
     for (const menu of Array.from(document.querySelectorAll('.dropdown-menu'))) {
-      $(menu.parentElement!).on('hide.bs.dropdown', (e: Event) => {
+      menu.parentElement!.addEventListener('hide.bs.dropdown', (e: Event) => {
         // @ts-ignore
         const target: HTMLElement | undefined = e.clickEvent?.target;
         if (target && doNotClose.indexOf(target.tagName) !== -1) {
@@ -208,13 +208,11 @@ export class GameUi {
   }
 
   private showSetup(): void {
-    // @ts-ignore
-    $('#setup-group').collapse('show');
+    Collapse.getOrCreateInstance('#setup-group', { toggle: false }).show();
   }
 
   private hideSetup(): void {
-    // @ts-ignore
-    $('#setup-group').collapse('hide');
+    Collapse.getOrCreateInstance('#setup-group', { toggle: false }).hide();
   }
 
 }

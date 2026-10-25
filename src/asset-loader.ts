@@ -1,11 +1,6 @@
-// @ts-ignore
-import jpg from '../img/*.jpg';
-// @ts-ignore
-import glbModels from '../img/models.auto.glb';
-
-import { Texture, Mesh, TextureLoader, Material, LinearEncoding,
+import { Texture, Mesh, TextureLoader, Material, LinearSRGBColorSpace,
    MeshStandardMaterial, MeshLambertMaterial, PlaneGeometry, RepeatWrapping } from 'three';
-import { GLTFLoader, GLTF } from 'three/examples/jsm/loaders/GLTFLoader';
+import { GLTFLoader, GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { World } from './world';
 import { Size } from './types';
 
@@ -53,8 +48,8 @@ export class AssetLoader {
 
   loadAll(): Promise<void> {
     return Promise.all([
-      this.loadTexture(jpg['table'], 'table'),
-      this.loadModels(glbModels),
+      this.loadTexture(new URL('../img/table.jpg', import.meta.url).href, 'table'),
+      this.loadModels(new URL('../img/models.auto.glb', import.meta.url).href),
       (document as any).fonts.load('40px "Segment7Standard"'),
     ]).then(() => {
       this.textures.table.wrapS = RepeatWrapping;
@@ -110,7 +105,7 @@ export class AssetLoader {
     const standard = material as MeshStandardMaterial;
     const map = standard.map;
     if (map !== null) {
-      map.encoding = LinearEncoding;
+      map.colorSpace = LinearSRGBColorSpace;
       map.anisotropy = 4;
     }
     return new MeshLambertMaterial({map});
