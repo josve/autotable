@@ -95,9 +95,10 @@ export class Center {
     for (let j = 0; j < 4; j++) {
 
       //LG Edit check if any names are longer
-      if (this.nicks[j] !== null)
+      const nick = this.nicks[j];
+      if (nick !== null)
       {
-        if (this.nicks[j].length > 12) textSize = 24; //use smaller text for all since one name is longer
+        if (nick.length > 12) textSize = 24; //use smaller text for all since one name is longer
       }
     }
 

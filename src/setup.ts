@@ -15,7 +15,7 @@ export class Setup {
     'TILE': 0,
     'STICK': 1000,
     'MARKER': 2000,
-  }
+  };
   pushes: Array<[Slot, Slot]> = [];
   conditions!: Conditions;
 

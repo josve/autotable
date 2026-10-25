@@ -20,7 +20,7 @@ export class GameUi {
     setupDesc: HTMLElement;
     fives: HTMLSelectElement;
     points: HTMLSelectElement;
-  }
+  };
 
   constructor(client: Client, world: World) {
     this.client = client;
