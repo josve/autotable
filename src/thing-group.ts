@@ -1,4 +1,4 @@
-import { Vector3, Euler, Mesh, Group, Material, InstancedMesh, Matrix4, BufferGeometry, MeshLambertMaterial, InstancedBufferGeometry, InstancedBufferAttribute } from "three";
+import { Vector3, Euler, Mesh, Group, Material, InstancedMesh, Matrix4, BufferGeometry, MeshLambertMaterial, InstancedBufferAttribute } from "three";
 import { AssetLoader } from "./asset-loader";
 import { ThingType } from "./types";
 
@@ -106,7 +106,7 @@ attribute vec3 offset;
       data[3 * i + 2] = v.z;
     }
 
-    const geometry = new InstancedBufferGeometry().copy(origMesh.geometry as BufferGeometry);
+    const geometry = (origMesh.geometry as BufferGeometry).clone();
     geometry.setAttribute('offset', new InstancedBufferAttribute(data, 3));
     const instancedMesh = new InstancedMesh(geometry, material, params.length);
     return instancedMesh;
@@ -160,11 +160,11 @@ export class TileThingGroup extends InstancedThingGroup {
   getUvChunk(): string {
     return `
 #include <uv_vertex>
-if (vUv.x <= ${TILE_DU} && vUv.y <= ${TILE_DV}) {
-  vUv.x += offset.x;
-  vUv.y += offset.y;
-} else if (vUv.y >= ${4*TILE_DV}) {
-  vUv.y += offset.z;
+if (vMapUv.x <= ${TILE_DU} && vMapUv.y <= ${TILE_DV}) {
+  vMapUv.x += offset.x;
+  vMapUv.y += offset.y;
+} else if (vMapUv.y >= ${4*TILE_DV}) {
+  vMapUv.y += offset.z;
 }
 `;
   }
@@ -211,7 +211,7 @@ export class StickThingGroup extends InstancedThingGroup {
   getUvChunk(): string {
     return `
 #include <uv_vertex>
-vUv += offset.xy;
+vMapUv += offset.xy;
 `;
   }
 

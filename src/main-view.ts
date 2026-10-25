@@ -1,7 +1,7 @@
-import { Scene, Camera, WebGLRenderer, Vector2, Vector3, Group, AmbientLight, DirectionalLight, PerspectiveCamera, OrthographicCamera, Mesh, Object3D, PlaneBufferGeometry } from 'three';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
-import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass';
+import { Scene, Camera, WebGLRenderer, Vector2, Vector3, Group, AmbientLight, DirectionalLight, PerspectiveCamera, OrthographicCamera, Mesh, Object3D, PlaneGeometry, ColorManagement, LinearSRGBColorSpace } from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 
 import { World } from './world';
@@ -32,21 +32,24 @@ export class MainView {
     this.main = document.getElementById('main')!;
 
     this.scene = new Scene();
-    this.scene.autoUpdate = false;
+    this.scene.matrixWorldAutoUpdate = false;
     this.viewGroup = new Group();
     this.viewGroup.position.set(World.WIDTH/2, World.WIDTH/2, 0);
     this.scene.add(this.mainGroup);
     this.scene.add(this.viewGroup);
 
-    this.dummyObject = new Mesh(new PlaneBufferGeometry(0, 0, 0));
+    this.dummyObject = new Mesh(new PlaneGeometry(0, 0, 0));
 
+    // Keep the pre-r152 look: no color management, linear output.
+    ColorManagement.enabled = false;
     this.renderer = new WebGLRenderer({ antialias: false });
+    this.renderer.outputColorSpace = LinearSRGBColorSpace;
     this.main.appendChild(this.renderer.domElement);
 
     this.setupLights();
     this.setupRendering();
 
-    this.stats = Stats();
+    this.stats = new Stats();
     this.stats.dom.style.left = 'auto';
     this.stats.dom.style.right = '0';
     const full = document.getElementById('full')!;
@@ -54,16 +57,16 @@ export class MainView {
   }
 
   private setupLights(): void {
-    this.viewGroup.add(new AmbientLight(0x888888));
-    const topLight = new DirectionalLight(0x777777);
+    this.viewGroup.add(new AmbientLight(0x888888, Math.PI));
+    const topLight = new DirectionalLight(0x777777, Math.PI);
     topLight.position.set(0, 0, 10000);
     this.viewGroup.add(topLight);
 
-    const frontLight = new DirectionalLight(0x222222);
+    const frontLight = new DirectionalLight(0x222222, Math.PI);
     frontLight.position.set(0, -10000, 0);
     this.viewGroup.add(frontLight);
 
-    const sideLight = new DirectionalLight(0x222222);
+    const sideLight = new DirectionalLight(0x222222, Math.PI);
     sideLight.position.set(-10000, -10000, 0);
     this.viewGroup.add(sideLight);
   }

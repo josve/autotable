@@ -8,6 +8,7 @@
     "@types/events": "^3.0.3",
     "@types/jest": "^30",
     "@types/qs": "^6.9.18",
+    "@types/three": "~0.186",
     "@types/ws": "^8",
     "eslint": "^10",
     "globals": "^17.13.0",
@@ -21,7 +22,7 @@
     "events": "^3.3.0",
     "normalize.css": "^8.0.1",
     "qs": "^6.14.0",
-    "three": "^0.115.0"
+    "three": "^0.186"
   },
   "scripts": {
     "start": "cd server && node dist/index.js",

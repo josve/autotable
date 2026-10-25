@@ -1,6 +1,6 @@
-import { Texture, Mesh, TextureLoader, Material, LinearEncoding,
+import { Texture, Mesh, TextureLoader, Material, LinearSRGBColorSpace,
    MeshStandardMaterial, MeshLambertMaterial, PlaneGeometry, RepeatWrapping } from 'three';
-import { GLTFLoader, GLTF } from 'three/examples/jsm/loaders/GLTFLoader';
+import { GLTFLoader, GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { World } from './world';
 import { Size } from './types';
 
@@ -105,7 +105,7 @@ export class AssetLoader {
     const standard = material as MeshStandardMaterial;
     const map = standard.map;
     if (map !== null) {
-      map.encoding = LinearEncoding;
+      map.colorSpace = LinearSRGBColorSpace;
       map.anisotropy = 4;
     }
     return new MeshLambertMaterial({map});
