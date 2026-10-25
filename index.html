@@ -2,7 +2,11 @@
 <head>
     <meta charset="utf-8">
     <title>Autotable</title>
-    <meta name="viewport" content="width=device-width">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="apple-touch-icon" href="img/icon-96.auto.png">
     <link href="img/icon-96.auto.png" rel="shortcut icon" sizes="96x96">
     <link href="img/icon-32.auto.png" rel="shortcut icon" sizes="32x32">
     <link href="img/icon-16.auto.png" rel="shortcut icon" sizes="16x16">
@@ -36,6 +40,15 @@
             <div class="seat-button seat-button-3">
                 <button class="btn btn-primary">Take seat</button>
             </div>
+        </div>
+
+        <div id="touch-controls">
+            <button class="btn btn-dark" id="touch-toggle-sidebar" title="Menu">&#9776;</button>
+            <button class="btn btn-dark" id="touch-flip" title="Flip">&#8635;</button>
+            <button class="btn btn-dark" id="touch-flip-back" title="Flip back">&#8634;</button>
+            <button class="btn btn-dark" id="touch-look-down" title="Look down">&#8615;</button>
+            <button class="btn btn-dark" id="touch-zoom-in" title="Zoom in">+</button>
+            <button class="btn btn-dark" id="touch-zoom-out" title="Zoom out">&minus;</button>
         </div>
 
         <div id="sidebar" class="collapsed container text-light">
@@ -129,6 +142,13 @@
                         Hold <b>Z</b> to zoom in<br>
                         Hold <b>X</b> to zoom out<br>
                         Press <b>P</b> to toggle perspective mode
+                        </p>
+                        <p class="touch-only">
+                        On touch screens:<br>
+                        <b>Drag</b> to move or select<br>
+                        <b>Tap</b> to select, <b>double tap</b> to flip<br>
+                        Use the buttons on the right to flip, look down and zoom,
+                        and &#9776; to hide this menu
                         </p>
                         <h4>Settings</h4>
                         

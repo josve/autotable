@@ -1,3 +1,11 @@
+html, body {
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
 #full {
     position: fixed;
     top: 0;
@@ -13,6 +21,8 @@
     left: 50%;
     transform: translate(-50%, -50%);
     overflow: hidden;
+    /* Handle touch ourselves instead of scrolling or zooming the page */
+    touch-action: none;
 }
 
 #selection {
@@ -75,6 +85,53 @@
     padding: 1em;
     background: rgba(30,30,30, 0.6);
     user-select: none;
+}
+
+#sidebar.hidden {
+    display: none;
+}
+
+#touch-controls {
+    display: none;
+    position: absolute;
+    right: calc(10px + env(safe-area-inset-right));
+    top: 50%;
+    transform: translate(0, -50%);
+    flex-direction: column;
+    gap: 10px;
+    z-index: 3;
+}
+
+#touch-controls .btn {
+    width: 56px;
+    height: 56px;
+    font-size: 26px;
+    line-height: 1;
+    padding: 0;
+    opacity: 0.8;
+    touch-action: manipulation;
+}
+
+#touch-controls .btn.active {
+    background-color: #ffc107;
+    color: #000;
+}
+
+.touch-only {
+    display: none;
+}
+
+@media (any-pointer: coarse) {
+    #touch-controls {
+        display: flex;
+    }
+    .touch-only {
+        display: block;
+    }
+    #sidebar .btn-sm, #sidebar .form-select-sm {
+        padding-top: 0.4rem;
+        padding-bottom: 0.4rem;
+    }
 }
 
 .dropdown-menu {

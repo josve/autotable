@@ -28,6 +28,24 @@ class Channel {
     this.panner.pan.value = pan;
   }
 
+  // iOS only allows playing an element after it was started from a user
+  // gesture, so play it silently once.
+  unlock(url: string): void {
+    if (this.playing) {
+      return;
+    }
+    this.element.src = url;
+    this.element.muted = true;
+    const done = (): void => {
+      this.element.muted = false;
+    };
+    this.element.play().then(() => {
+      this.element.pause();
+      this.element.currentTime = 0;
+      done();
+    }, done);
+  }
+
   play(url: string): void {
     this.element.src = url;
     this.element.play();
@@ -54,6 +72,23 @@ export class SoundPlayer {
       [SoundType.DISCARD]: this.getSource('sound-discard'),
       [SoundType.STICK]: this.getSource('sound-stick'),
     };
+
+    const unlock = (): void => {
+      this.unlock();
+      for (const type of ['pointerup', 'touchend', 'keydown']) {
+        window.removeEventListener(type, unlock, true);
+      }
+    };
+    for (const type of ['pointerup', 'touchend', 'keydown']) {
+      window.addEventListener(type, unlock, true);
+    }
+  }
+
+  private unlock(): void {
+    this.audioContext.resume();
+    for (const channel of this.channels) {
+      channel.unlock(this.urls[SoundType.DISCARD]);
+    }
   }
 
   play(type: SoundType, side: number | null): void {
