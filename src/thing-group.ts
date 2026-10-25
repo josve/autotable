@@ -49,8 +49,6 @@ export abstract class ThingGroup {
     for (const p of params) {
       const mesh = this.createMesh(p.typeIndex);
       mesh.matrixAutoUpdate = false;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
       this.meshes.push(mesh);
       this.group.add(mesh);
     }
@@ -121,8 +119,6 @@ attribute vec3 offset;
       instancedMesh.setMatrixAt(params.length + i, this.zero);
     }
     instancedMesh.instanceMatrix.needsUpdate = true;
-    instancedMesh.castShadow = true;
-    instancedMesh.receiveShadow = true;
     return instancedMesh;
   }
 
