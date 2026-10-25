@@ -94,27 +94,59 @@ html, body {
 #touch-controls {
     display: none;
     position: absolute;
-    right: calc(10px + env(safe-area-inset-right));
-    top: 50%;
-    transform: translate(0, -50%);
-    flex-direction: column;
-    gap: 10px;
+    left: 50%;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    transform: translate(-50%, 0);
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 6px;
+    border-radius: 999px;
+    background: rgba(16, 20, 26, 0.72);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     z-index: 3;
 }
 
 #touch-controls .btn {
     width: 56px;
     height: 56px;
-    font-size: 26px;
-    line-height: 1;
     padding: 0;
-    opacity: 0.8;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #e9edf2;
+    display: grid;
+    place-items: center;
     touch-action: manipulation;
+}
+
+#touch-controls .btn svg {
+    width: 26px;
+    height: 26px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+#touch-controls .btn:active {
+    background: rgba(255, 255, 255, 0.12);
 }
 
 #touch-controls .btn.active {
     background-color: #ffc107;
     color: #000;
+}
+
+.touch-separator {
+    width: 1px;
+    height: 32px;
+    margin: 0 4px;
+    background: rgba(255, 255, 255, 0.15);
 }
 
 .touch-only {

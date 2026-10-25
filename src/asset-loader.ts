@@ -14,11 +14,15 @@ export class AssetLoader {
       World.WIDTH + Size.TILE.y, World.WIDTH + Size.TILE.y);
     const tableMaterial = new MeshLambertMaterial({ color: 0xeeeeee, map: this.textures.table });
     const tableMesh = new Mesh(tableGeometry, tableMaterial);
+    tableMesh.receiveShadow = true;
     return tableMesh;
   }
 
   makeCenter(): Mesh {
-    return this.cloneMesh(this.meshes.center);
+    const mesh = this.cloneMesh(this.meshes.center);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
   }
 
   makeTray(): Mesh {

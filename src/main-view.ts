@@ -1,17 +1,24 @@
-import { Scene, Camera, WebGLRenderer, Vector2, Vector3, Group, AmbientLight, DirectionalLight, PerspectiveCamera, OrthographicCamera, Mesh, Object3D, PlaneGeometry, ColorManagement, LinearSRGBColorSpace } from 'three';
+import { Scene, Camera, WebGLRenderer, Vector2, Vector3, Group, AmbientLight, DirectionalLight, PerspectiveCamera, OrthographicCamera, Mesh, Object3D, PlaneGeometry, ColorManagement, LinearSRGBColorSpace, PCFShadowMap, WebGLRenderTarget } from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
+import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 
 import { World } from './world';
 
 const RATIO = 1.85; //LG Adjusted camera to new wider view port (org Ratio 1.5)
 
+// Multisample anti-aliasing for the post-processing render targets.
+const MSAA_SAMPLES = 4;
+
 export class MainView {
   private main: HTMLElement;
   private stats: Stats;
   private perspective = true;
+  private antialias = true;
+  // Shadows and ambient occlusion
+  private highQuality = false;
 
   private scene: Scene;
   private mainGroup: Group;
@@ -21,6 +28,11 @@ export class MainView {
   camera: Camera = null!;
   private composer: EffectComposer = null!;
   private outlinePass: OutlinePass = null!;
+
+  private ambientLight: AmbientLight = null!;
+  private topLight: DirectionalLight = null!;
+  private fillLights: Array<DirectionalLight> = [];
+  private shadowLight: DirectionalLight = null!;
 
   private width = 0;
   private height = 0;
@@ -44,6 +56,7 @@ export class MainView {
     ColorManagement.enabled = false;
     this.renderer = new WebGLRenderer({ antialias: false });
     this.renderer.outputColorSpace = LinearSRGBColorSpace;
+    this.renderer.shadowMap.type = PCFShadowMap;
     this.main.appendChild(this.renderer.domElement);
 
     this.setupLights();
@@ -57,10 +70,11 @@ export class MainView {
   }
 
   private setupLights(): void {
-    this.viewGroup.add(new AmbientLight(0x888888, Math.PI));
-    const topLight = new DirectionalLight(0x777777, Math.PI);
-    topLight.position.set(0, 0, 10000);
-    this.viewGroup.add(topLight);
+    this.ambientLight = new AmbientLight(0x888888, Math.PI);
+    this.viewGroup.add(this.ambientLight);
+    this.topLight = new DirectionalLight(0x777777, Math.PI);
+    this.topLight.position.set(0, 0, 10000);
+    this.viewGroup.add(this.topLight);
 
     const frontLight = new DirectionalLight(0x222222, Math.PI);
     frontLight.position.set(0, -10000, 0);
@@ -69,11 +83,48 @@ export class MainView {
     const sideLight = new DirectionalLight(0x222222, Math.PI);
     sideLight.position.set(-10000, -10000, 0);
     this.viewGroup.add(sideLight);
+    this.fillLights = [frontLight, sideLight];
+
+    // Angled light that casts shadows; only enabled in high quality mode.
+    // Like the other lights, it rotates with the player's seat.
+    this.shadowLight = new DirectionalLight(0xffffff, Math.PI * 0.75);
+    this.shadowLight.position.set(-90, -120, 220);
+    this.shadowLight.castShadow = true;
+    this.shadowLight.shadow.mapSize.set(2048, 2048);
+    this.shadowLight.shadow.bias = -0.0005;
+    this.shadowLight.shadow.normalBias = 0.2;
+    this.shadowLight.shadow.radius = 4;
+    const shadowCamera = this.shadowLight.shadow.camera;
+    const extent = World.WIDTH * 0.7;
+    shadowCamera.left = -extent;
+    shadowCamera.right = extent;
+    shadowCamera.top = extent;
+    shadowCamera.bottom = -extent;
+    shadowCamera.near = 1;
+    shadowCamera.far = 600;
+    shadowCamera.updateProjectionMatrix();
+    this.viewGroup.add(this.shadowLight);
+    this.viewGroup.add(this.shadowLight.target);
+
+    this.updateLights();
+  }
+
+  private updateLights(): void {
+    // Dim the other lights when the shadow light is on, so that the overall
+    // brightness stays roughly the same.
+    const hq = this.highQuality;
+    this.ambientLight.intensity = Math.PI * (hq ? 0.45 : 1);
+    this.topLight.intensity = Math.PI * (hq ? 0.35 : 1);
+    for (const light of this.fillLights) {
+      light.intensity = Math.PI * (hq ? 0.35 : 1);
+    }
+    this.shadowLight.visible = hq;
+    this.renderer.shadowMap.enabled = hq;
   }
 
   private setupRendering(): void {
-    const w = this.renderer.domElement.clientWidth;
-    const h = this.renderer.domElement.clientHeight;
+    const w = Math.max(this.renderer.domElement.clientWidth, 1);
+    const h = Math.max(this.renderer.domElement.clientHeight, 1);
 
     this.renderer.setClearColor (0x404040, 1); //LG Edit, change to a slightly lighter non-black background color
 
@@ -83,12 +134,26 @@ export class MainView {
 
     this.camera = this.makeCamera(this.perspective);
     this.viewGroup.add(this.camera);
-    this.composer = new EffectComposer(this.renderer);
+    if (this.composer !== null) {
+      for (const pass of this.composer.passes) {
+        pass.dispose();
+      }
+      this.composer.dispose();
+    }
+    const renderTarget = new WebGLRenderTarget(w, h, { samples: this.antialias ? MSAA_SAMPLES : 0 });
+    this.composer = new EffectComposer(this.renderer, renderTarget);
+    // Passing our own render target sets the size without the pixel ratio
+    this.composer.setSize(w, h);
     const renderPass = new RenderPass(this.scene, this.camera);
     this.outlinePass = new OutlinePass(new Vector2(w, h), this.scene, this.camera);
     this.outlinePass.visibleEdgeColor.setHex(0xffff99);
     this.outlinePass.hiddenEdgeColor.setHex(0x333333);
     this.composer.addPass(renderPass);
+    if (this.highQuality) {
+      const gtaoPass = new GTAOPass(this.scene, this.camera, w, h);
+      gtaoPass.updateGtaoMaterial({ radius: 10, distanceExponent: 1, thickness: 10, scale: 2.2 });
+      this.composer.addPass(gtaoPass);
+    }
     this.composer.addPass(this.outlinePass);
 
     // Force OutlinePass to precompile shadows, otherwise there is a pause when
@@ -183,6 +248,31 @@ export class MainView {
 
   setPerspective(perspective: boolean): void {
     this.perspective = perspective;
+    this.setupRendering();
+  }
+
+  setAntialias(antialias: boolean): void {
+    if (antialias === this.antialias) {
+      return;
+    }
+    this.antialias = antialias;
+    this.setupRendering();
+  }
+
+  setHighQuality(highQuality: boolean): void {
+    if (highQuality === this.highQuality) {
+      return;
+    }
+    this.highQuality = highQuality;
+    this.updateLights();
+    this.scene.traverse(obj => {
+      const material = (obj as Mesh).material;
+      if (material) {
+        for (const m of Array.isArray(material) ? material : [material]) {
+          m.needsUpdate = true;
+        }
+      }
+    });
     this.setupRendering();
   }
 
