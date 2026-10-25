@@ -49,8 +49,6 @@ export abstract class ThingGroup {
     for (const p of params) {
       const mesh = this.createMesh(p.typeIndex);
       mesh.matrixAutoUpdate = false;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
       this.meshes.push(mesh);
       this.group.add(mesh);
     }
@@ -111,8 +109,6 @@ attribute vec3 offset;
     const geometry = (origMesh.geometry as BufferGeometry).clone();
     geometry.setAttribute('offset', new InstancedBufferAttribute(data, 3));
     const instancedMesh = new InstancedMesh(geometry, material, params.length);
-    instancedMesh.castShadow = true;
-    instancedMesh.receiveShadow = true;
     return instancedMesh;
   }
 
