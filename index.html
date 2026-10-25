@@ -43,12 +43,25 @@
         </div>
 
         <div id="touch-controls">
-            <button class="btn btn-dark" id="touch-toggle-sidebar" title="Menu">&#9776;</button>
-            <button class="btn btn-dark" id="touch-flip" title="Flip">&#8635;</button>
-            <button class="btn btn-dark" id="touch-flip-back" title="Flip back">&#8634;</button>
-            <button class="btn btn-dark" id="touch-look-down" title="Look down">&#8615;</button>
-            <button class="btn btn-dark" id="touch-zoom-in" title="Zoom in">+</button>
-            <button class="btn btn-dark" id="touch-zoom-out" title="Zoom out">&minus;</button>
+            <button class="btn" id="touch-toggle-sidebar" title="Menu">
+                <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+            </button>
+            <span class="touch-separator"></span>
+            <button class="btn" id="touch-flip" title="Flip">
+                <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-14 5.3M4 20v-4h4"/></svg>
+            </button>
+            <button class="btn" id="touch-flip-back" title="Flip back">
+                <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 0 0-14-5.3M4 4v4h4"/></svg>
+            </button>
+            <button class="btn" id="touch-look-down" title="Look down">
+                <svg viewBox="0 0 24 24"><path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+            <button class="btn" id="touch-zoom-in" title="Zoom in">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M11 8v6M8 11h6M20 20l-4.5-4.5"/></svg>
+            </button>
+            <button class="btn" id="touch-zoom-out" title="Zoom out">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M8 11h6M20 20l-4.5-4.5"/></svg>
+            </button>
         </div>
 
         <div id="sidebar" class="collapsed container text-light">
@@ -147,7 +160,7 @@
                         On touch screens:<br>
                         <b>Drag</b> to move or select<br>
                         <b>Tap</b> to select, <b>double tap</b> to flip<br>
-                        Use the buttons on the right to flip, look down and zoom,
+                        Use the buttons at the bottom to flip, look down and zoom,
                         and &#9776; to hide this menu
                         </p>
                         <h4>Settings</h4>
@@ -163,6 +176,14 @@
                         <label>
                             <input type="checkbox" id="sticky">
                             Sticky mouse (click to grab)
+                        </label>
+                        <label>
+                            <input type="checkbox" id="antialias">
+                            Anti-aliasing (smoother edges)
+                        </label>
+                        <label>
+                            <input type="checkbox" id="high-quality">
+                            High quality graphics (shadows, ambient occlusion)
                         </label>
                         <button class="btn btn-secondary btn-sm w-100 mt-2" id="new-game">New game</button>
                     </div>

@@ -29,6 +29,8 @@ export class Game {
     benchmark: HTMLInputElement;
     muted: HTMLInputElement;
     sticky: HTMLInputElement;
+    antialias: HTMLInputElement;
+    highQuality: HTMLInputElement;
   };
 
   private lookDown = new Animation(150);
@@ -55,7 +57,10 @@ export class Game {
       benchmark: document.getElementById('benchmark') as HTMLInputElement,
       muted: document.getElementById('muted') as HTMLInputElement,
       sticky: document.getElementById('sticky') as HTMLInputElement,
+      antialias: document.getElementById('antialias') as HTMLInputElement,
+      highQuality: document.getElementById('high-quality') as HTMLInputElement,
     };
+    this.loadGraphicsSettings();
 
 
     this.setupEvents();
@@ -108,6 +113,21 @@ export class Game {
     this.benchmark = this.settings.benchmark.checked;
     this.soundPlayer.muted = this.settings.muted.checked;
     this.mouseUi.sticky = this.settings.sticky.checked;
+    this.mainView.setAntialias(this.settings.antialias.checked);
+    this.mainView.setHighQuality(this.settings.highQuality.checked);
+    localStorage.setItem('autotable.antialias', this.settings.antialias.checked ? '1' : '0');
+    localStorage.setItem('autotable.highQuality', this.settings.highQuality.checked ? '1' : '0');
+  }
+
+  private loadGraphicsSettings(): void {
+    const antialias = localStorage.getItem('autotable.antialias');
+    const highQuality = localStorage.getItem('autotable.highQuality');
+    this.settings.antialias.checked = antialias !== '0';
+    // Shadows and ambient occlusion are too slow for most tablets
+    this.settings.highQuality.checked = highQuality !== null ?
+      highQuality === '1' : !window.matchMedia('(any-pointer: coarse)').matches;
+    this.mainView.setAntialias(this.settings.antialias.checked);
+    this.mainView.setHighQuality(this.settings.highQuality.checked);
   }
 
   start(): void {
