@@ -31,9 +31,8 @@ export class Server {
           console.debug(`recv * ${data}`);
         }
 
-        const message = JSON.parse(data.toString()) as Message;
-
         try {
+          const message = JSON.parse(data.toString()) as Message;
           this.onMessage(client, message);
         } catch(err) {
           console.error(err);
