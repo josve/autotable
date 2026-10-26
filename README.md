@@ -51,6 +51,14 @@ Here is what I use for nginx:
         proxy_read_timeout 7d;
     }
 
+## HTTP API
+
+The server also accepts plain HTTP requests on the same port, so that other systems can create games before any player connects:
+
+    POST /games  ->  201 {"gameId": "ABCDE"}
+
+Players then join the game by opening the frontend with `?gameId=ABCDE`. If the `AUTOTABLE_API_KEY` environment variable is set, requests must include the header `Authorization: Bearer <key>`.
+
 ## License
 
 All of my code is licensed under MIT. See COPYING.
