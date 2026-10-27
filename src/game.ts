@@ -9,6 +9,7 @@ import { Group } from "three";
 import { ClientUi } from "./client-ui";
 import { SoundPlayer } from "./sound-player";
 import { GameUi } from './game-ui';
+import { EffectSettings, EFFECT_NAMES, loadEffectSettings, saveEffectSettings, shaderEffects } from './effects';
 
 export class Game {
   private assetLoader: AssetLoader;
@@ -59,7 +60,7 @@ export class Game {
       antialias: document.getElementById('antialias') as HTMLInputElement,
     };
     this.loadGraphicsSettings();
-
+    this.setupEffects();
 
     this.setupEvents();
   }
@@ -119,6 +120,31 @@ export class Game {
     const antialias = localStorage.getItem('autotable.antialias');
     this.settings.antialias.checked = antialias !== '0';
     this.mainView.setAntialias(this.settings.antialias.checked);
+  }
+
+  private setupEffects(): void {
+    const settings = loadEffectSettings();
+    for (const name of EFFECT_NAMES) {
+      const element = document.getElementById(`effect-${name}`) as HTMLInputElement;
+      element.checked = settings[name];
+      element.addEventListener('change', this.updateEffects.bind(this));
+    }
+    this.applyEffects(settings);
+  }
+
+  private updateEffects(): void {
+    const settings = {} as EffectSettings;
+    for (const name of EFFECT_NAMES) {
+      settings[name] = (document.getElementById(`effect-${name}`) as HTMLInputElement).checked;
+    }
+    saveEffectSettings(settings);
+    this.applyEffects(settings);
+  }
+
+  private applyEffects(settings: EffectSettings): void {
+    shaderEffects.setSettings(settings);
+    this.objectView.refreshEffects();
+    this.mainView.setEffects(settings);
   }
 
   start(): void {

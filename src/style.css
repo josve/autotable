@@ -260,3 +260,12 @@ html, body {
 .collapsing {
 	transition:height 0.2s ease !important;
 }
+
+.effects-menu {
+    max-height: 75vh;
+    overflow-y: auto;
+}
+
+.effects-menu label {
+    display: block;
+}

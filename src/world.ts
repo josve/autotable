@@ -33,6 +33,11 @@ export class World {
 
   private movement: Movement | null = null;
   private heldMouse: Vector3 | null = null;
+
+  // Slot of each thing on the previous frame, to notice tiles landing on a
+  // discard pile (for the discard pulse and ripple effects).
+  private lastSlots: Map<Thing, Slot> = new Map();
+  private lastDiscard: Thing | null = null;
   mouseTracker: MouseTracker;
 
   soundPlayer: SoundPlayer;
@@ -592,6 +597,15 @@ export class World {
 
       const slot = thing.slot;
 
+      const lastSlot = this.lastSlots.get(thing);
+      if (lastSlot !== undefined && lastSlot !== slot && slot.group === 'discard' &&
+        !(lastSlot.group === 'discard' && lastSlot.seat === slot.seat)) {
+        this.lastDiscard = thing;
+        this.objectView.onDiscard(thing.place());
+      }
+      this.lastSlots.set(thing, slot);
+      const lastDiscard = thing === this.lastDiscard && slot.group === 'discard';
+
       const bottom =
         !held &&
         slot.links.up !== undefined &&
@@ -607,6 +621,7 @@ export class World {
         held,
         temporary,
         bottom,
+        lastDiscard,
       });
     }
     this.objectView.updateThings(toRender);
@@ -636,6 +651,8 @@ export class World {
   }
 
   setupView(): void {
+    this.lastSlots.clear();
+    this.lastDiscard = null;
     this.objectView.replaceThings(this.things);
 
     const places = [];
