@@ -1,9 +1,11 @@
-import { Scene, Camera, WebGLRenderer, Vector2, Vector3, Group, AmbientLight, DirectionalLight, PerspectiveCamera, OrthographicCamera, Mesh, Object3D, PlaneGeometry, ColorManagement, LinearSRGBColorSpace, WebGLRenderTarget } from 'three';
+import { Scene, Camera, WebGLRenderer, Vector2, Vector3, Group, AmbientLight, DirectionalLight, PerspectiveCamera, OrthographicCamera, Mesh, Object3D, PlaneGeometry, ColorManagement, LinearSRGBColorSpace, WebGLRenderTarget, SpotLight, Light, VSMShadowMap } from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
+import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 
 import { World } from './world';
+import { EffectSettings, defaultEffects, shaderEffects } from './effects';
 
 const RATIO = 1.85; //LG Adjusted camera to new wider view port (org Ratio 1.5)
 
@@ -14,6 +16,7 @@ export class MainView {
   private main: HTMLElement;
   private perspective = true;
   private antialias = true;
+  private effects: EffectSettings = defaultEffects();
 
   private scene: Scene;
   private mainGroup: Group;
@@ -28,6 +31,10 @@ export class MainView {
   private height = 0;
 
   private dummyObject: Object3D;
+
+  // Lights with their normal intensity, dimmed when the lamp casts shadows.
+  private lights: Array<[Light, number]> = [];
+  private shadowLight: SpotLight = null!;
 
   constructor(mainGroup: Group) {
     this.mainGroup = mainGroup;
@@ -46,6 +53,7 @@ export class MainView {
     ColorManagement.enabled = false;
     this.renderer = new WebGLRenderer({ antialias: false });
     this.renderer.outputColorSpace = LinearSRGBColorSpace;
+    this.renderer.shadowMap.type = VSMShadowMap;
     this.main.appendChild(this.renderer.domElement);
 
     this.setupLights();
@@ -53,7 +61,8 @@ export class MainView {
   }
 
   private setupLights(): void {
-    this.viewGroup.add(new AmbientLight(0x888888, Math.PI));
+    const ambientLight = new AmbientLight(0x888888, Math.PI);
+    this.viewGroup.add(ambientLight);
     const topLight = new DirectionalLight(0x777777, Math.PI);
     topLight.position.set(0, 0, 10000);
     this.viewGroup.add(topLight);
@@ -65,13 +74,54 @@ export class MainView {
     const sideLight = new DirectionalLight(0x222222, Math.PI);
     sideLight.position.set(-10000, -10000, 0);
     this.viewGroup.add(sideLight);
+
+    for (const light of [ambientLight, topLight, frontLight, sideLight]) {
+      this.lights.push([light, light.intensity]);
+    }
+
+    // Warm lamp above the table, used only for the shadows effect.
+    this.shadowLight = new SpotLight(0xffe2b0, 3.2, 0, 0.75, 0.7, 0);
+    this.shadowLight.position.set(-50, -70, 160);
+    this.shadowLight.target.position.set(0, 0, 0);
+    this.shadowLight.shadow.mapSize.set(2048, 2048);
+    this.shadowLight.shadow.bias = -0.0004;
+    this.shadowLight.shadow.radius = 6;
+    this.shadowLight.shadow.blurSamples = 16;
+    this.shadowLight.shadow.camera.near = 50;
+    this.shadowLight.shadow.camera.far = 400;
+    this.shadowLight.visible = false;
+    this.viewGroup.add(this.shadowLight, this.shadowLight.target);
+  }
+
+  setEffects(effects: EffectSettings): void {
+    const aoChanged = effects.ambientOcclusion !== this.effects.ambientOcclusion;
+    this.effects = { ...effects };
+
+    const shadows = effects.shadows;
+    this.renderer.shadowMap.enabled = shadows;
+    this.shadowLight.visible = shadows;
+    this.shadowLight.castShadow = shadows;
+    for (const [light, intensity] of this.lights) {
+      light.intensity = shadows ? intensity * 0.45 : intensity;
+    }
+
+    if (aoChanged) {
+      this.setupRendering();
+    } else {
+      this.updateClearColor();
+    }
+  }
+
+  private updateClearColor(): void {
+    // Darker room around the table when the lamp's light shaft is on.
+    this.renderer.setClearColor(this.effects.lightShaft ? 0x14120e : 0x404040, 1);
   }
 
   private setupRendering(): void {
     const w = Math.max(this.renderer.domElement.clientWidth, 1);
     const h = Math.max(this.renderer.domElement.clientHeight, 1);
 
-    this.renderer.setClearColor (0x404040, 1); //LG Edit, change to a slightly lighter non-black background color
+    this.updateClearColor(); //LG Edit, change to a slightly lighter non-black background color
 
     if (this.camera !== null) {
       this.scene.remove(this.camera);
@@ -94,6 +144,13 @@ export class MainView {
     this.outlinePass.visibleEdgeColor.setHex(0xffff99);
     this.outlinePass.hiddenEdgeColor.setHex(0x333333);
     this.composer.addPass(renderPass);
+    if (this.effects.ambientOcclusion) {
+      const gtaoPass = new GTAOPass(this.scene, this.camera, w, h);
+      gtaoPass.updateGtaoMaterial({ radius: 7, distanceExponent: 1, thickness: 6, scale: 2, samples: 16 });
+      gtaoPass.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 16 });
+      gtaoPass.blendIntensity = 2;
+      this.composer.addPass(gtaoPass);
+    }
     this.composer.addPass(this.outlinePass);
 
     // Force OutlinePass to precompile shadows, otherwise there is a pause when
@@ -202,6 +259,7 @@ export class MainView {
   }
 
   render(): void {
+    shaderEffects.tick();
     this.composer.render();
   }
 

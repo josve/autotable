@@ -1,5 +1,6 @@
-import { Vector3, Euler, Mesh, Group, Material, InstancedMesh, Matrix4, BufferGeometry, MeshLambertMaterial, InstancedBufferAttribute } from "three";
+import { Vector3, Euler, Mesh, Group, Material, InstancedMesh, Matrix4, BufferGeometry, MeshLambertMaterial, InstancedBufferAttribute, Float32BufferAttribute } from "three";
 import { AssetLoader } from "./asset-loader";
+import { shaderEffects, MaterialKind } from "./effects";
 import { ThingType } from "./types";
 
 const TILE_DU = 32 / 256;
@@ -49,6 +50,8 @@ export abstract class ThingGroup {
     for (const p of params) {
       const mesh = this.createMesh(p.typeIndex);
       mesh.matrixAutoUpdate = false;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
       this.meshes.push(mesh);
       this.group.add(mesh);
     }
@@ -58,7 +61,9 @@ export abstract class ThingGroup {
 
 export class MarkerThingGroup extends ThingGroup {
   createMesh(typeIndex: number): Mesh {
-    return this.assetLoader.makeMarker();
+    const mesh = this.assetLoader.makeMarker();
+    shaderEffects.patch(mesh.material as Material, 'piece');
+    return mesh;
   }
 }
 
@@ -69,6 +74,7 @@ abstract class InstancedThingGroup extends ThingGroup {
   abstract getOriginalMesh(): Mesh;
   abstract getUvChunk(): string;
   abstract getOffset(typeIndex: number): Vector3;
+  abstract getMaterialKind(): MaterialKind;
 
   canSetSimple(): boolean {
     return true;
@@ -97,6 +103,7 @@ attribute vec3 offset;
     // Fix cache conflict: https://github.com/mrdoob/three.js/issues/19377
     material.defines = material.defines ?? {};
     material.defines.THING_TYPE = origMesh.name;
+    shaderEffects.patch(material, this.getMaterialKind());
 
     // Weird bug: in Firefox Android, the last instance is not being rendered.
     const extra = 1;
@@ -111,7 +118,16 @@ attribute vec3 offset;
 
     const geometry = (origMesh.geometry as BufferGeometry).clone();
     geometry.setAttribute('offset', new InstancedBufferAttribute(data, 3));
+    if (this.getMaterialKind() === 'tile') {
+      const seeds = new Float32Array(params.length + extra);
+      for (let i = 0; i < params.length; i++) {
+        seeds[i] = params[i].typeIndex;
+      }
+      geometry.setAttribute('fxSeed', new InstancedBufferAttribute(seeds, 1));
+    }
     const instancedMesh = new InstancedMesh(geometry, material, params.length + extra);
+    instancedMesh.castShadow = true;
+    instancedMesh.receiveShadow = true;
     // The bounding sphere is computed once from the initial instance matrices,
     // so the mesh would be wrongly culled after things move (e.g. on zoom).
     instancedMesh.frustumCulled = false;
@@ -167,6 +183,10 @@ export class TileThingGroup extends InstancedThingGroup {
     return this.assetLoader.meshes.tile;
   }
 
+  getMaterialKind(): MaterialKind {
+    return 'tile';
+  }
+
   getUvChunk(): string {
     return `
 #include <uv_vertex>
@@ -208,6 +228,9 @@ if (vMapUv.x <= ${TILE_DU} && vMapUv.y <= ${TILE_DV}) {
         uvs[i+1] += back * TILE_DV;
       }
     }
+    const count = geometry.attributes.position.count;
+    geometry.setAttribute('fxSeed', new Float32BufferAttribute(new Array(count).fill(typeIndex), 1));
+    shaderEffects.patch(mesh.material as Material, 'tile');
 
     return mesh;
   }
@@ -216,6 +239,10 @@ if (vMapUv.x <= ${TILE_DU} && vMapUv.y <= ${TILE_DV}) {
 export class StickThingGroup extends InstancedThingGroup {
   getOriginalMesh(): Mesh {
     return this.assetLoader.meshes.stick;
+  }
+
+  getMaterialKind(): MaterialKind {
+    return 'piece';
   }
 
   getUvChunk(): string {
@@ -238,6 +265,7 @@ vMapUv += offset.xy;
     for (let i = 0; i < uvs.length; i += 2) {
       uvs[i+1] += typeIndex * STICK_DV;
     }
+    shaderEffects.patch(mesh.material as Material, 'piece');
 
     return mesh;
   }

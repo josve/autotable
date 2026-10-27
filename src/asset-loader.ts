@@ -3,6 +3,7 @@ import { Texture, Mesh, TextureLoader, Material, LinearSRGBColorSpace,
 import { GLTFLoader, GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { World } from './world';
 import { Size } from './types';
+import { shaderEffects } from './effects';
 
 
 export class AssetLoader {
@@ -13,7 +14,9 @@ export class AssetLoader {
     const tableGeometry = new PlaneGeometry(
       World.WIDTH + Size.TILE.y, World.WIDTH + Size.TILE.y);
     const tableMaterial = new MeshLambertMaterial({ color: 0xeeeeee, map: this.textures.table });
+    shaderEffects.patch(tableMaterial, 'table');
     const tableMesh = new Mesh(tableGeometry, tableMaterial);
+    tableMesh.receiveShadow = true;
     return tableMesh;
   }
 
