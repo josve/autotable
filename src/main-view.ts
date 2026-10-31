@@ -356,13 +356,13 @@ export class MainView {
     }
   }
 
-  updateCamera(seat: number | null, lookDown: number, handView: number, zoom: number, mouse2: Vector2 | null): void {
+  updateCamera(seat: number | null, handView: number, zoom: number, mouse2: Vector2 | null): void {
     const fromTop = seat === null;
     const t = fromTop ? 0 : smootherstep(handView);
     if (this.perspective) {
-      this.updatePespectiveCamera(fromTop, lookDown, t, zoom, mouse2);
+      this.updatePespectiveCamera(fromTop, t, zoom, mouse2);
     } else {
-      this.updateOrthographicCamera(fromTop, lookDown, t, zoom, mouse2);
+      this.updateOrthographicCamera(fromTop, t, zoom, mouse2);
     }
 
     const angle = (seat ?? 0) * Math.PI * 0.5;
@@ -393,7 +393,6 @@ export class MainView {
 
   private updatePespectiveCamera(
     fromTop: boolean,
-    lookDown: number,
     handView: number,
     zoom: number,
     mouse2: Vector2 | null): void
@@ -405,8 +404,7 @@ export class MainView {
     } else {
       //this.camera.position.set(0, -World.WIDTH*1.44, World.WIDTH * 1.05); //Original camera location
       camera.position.set(0, -World.WIDTH*1.30, World.WIDTH * 0.90); //LG Adjusted camera to new wider view port
-      //this.camera.rotation.set(Math.PI * 0.3 - lookDown * 0.2, 0, 0);
-      camera.rotation.set(Math.PI * 0.3 - lookDown * 0.2 - 0.03, 0, 0); //LG Adjusted camera to center a little below the center
+      camera.rotation.set(Math.PI * 0.3 - 0.03, 0, 0); //LG Adjusted camera to center a little below the center
 
       if (handView > 0) {
         // Swoop down to a low angle close to the hand, like a camera crane.
@@ -446,7 +444,6 @@ export class MainView {
 
   private updateOrthographicCamera(
     fromTop: boolean,
-    lookDown: number,
     handView: number,
     zoom: number,
     mouse2: Vector2 | null): void
@@ -460,7 +457,7 @@ export class MainView {
       const handY = HAND_CENTER.y + 12 - (174 - HAND_CENTER.z);
       this.camera.position.set(
         0,
-        lerp(-53 * lookDown - World.WIDTH, handY, handView),
+        lerp(-World.WIDTH, handY, handView),
         174);
       this.camera.rotation.set(Math.PI * 0.25, 0, 0);
       this.setOrthographicScale(lerp(1 - 0.45 * zoom, 0.55, handView));

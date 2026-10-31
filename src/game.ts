@@ -33,11 +33,10 @@ export class Game {
     antialias: HTMLInputElement;
   };
 
-  private lookDown = new Animation(150);
   private zoom = new Animation(150);
   // Cinematic close-up of your own tiles (hold Space).
   private handView = new Animation(650);
-  private lookDownState: number = 0;
+  private handViewState: number = 0;
   private zoomState: number = 0;
 
   keys: Set<string> = new Set();
@@ -83,7 +82,7 @@ export class Game {
     const buttons: Record<string, () => void> = {
       'touch-flip': () => this.world.onFlip(1),
       'touch-flip-back': () => this.world.onFlip(-1),
-      'touch-look-down': () => this.toggleLookDown(),
+      'touch-look-down': () => this.toggleHandView(),
       'touch-zoom-in': () => this.toggleZoom(1),
       'touch-zoom-out': () => this.toggleZoom(-1),
       'touch-toggle-sidebar': () => {
@@ -96,10 +95,10 @@ export class Game {
     }
   }
 
-  private toggleLookDown(): void {
-    this.lookDownState = 1 - this.lookDownState;
-    this.lookDown.start(this.lookDownState);
-    document.getElementById('touch-look-down')!.classList.toggle('active', this.lookDownState === 1);
+  private toggleHandView(): void {
+    this.handViewState = 1 - this.handViewState;
+    this.handView.start(this.handViewState);
+    document.getElementById('touch-look-down')!.classList.toggle('active', this.handViewState === 1);
   }
 
   private toggleZoom(direction: number): void {
@@ -179,14 +178,13 @@ export class Game {
   }
 
   private update(): void {
-    this.lookDown.update();
     this.zoom.update();
     this.handView.update();
 
     this.world.updateView();
     this.mainView.updateViewport();
     this.mainView.updateCamera(
-      this.world.seat, this.lookDown.pos, this.handView.pos, this.zoom.pos, this.mouseUi.zoomTarget());
+      this.world.seat, this.handView.pos, this.zoom.pos, this.mouseUi.zoomTarget());
     this.mainView.updateOutline(this.objectView.selectedObjects);
     this.mouseUi.setCamera(this.mainView.camera);
     this.mouseUi.updateObjects();
@@ -232,7 +230,7 @@ export class Game {
         this.zoom.start(-1);
         break;
       case 'q':
-        this.toggleLookDown();
+        this.toggleHandView();
         break;
       case 'p':
         this.settings.perspective.checked = !this.settings.perspective.checked;
@@ -246,7 +244,8 @@ export class Game {
 
     switch(event.key) {
       case ' ':
-        this.handView.start(0);
+        // Back to the toggled state (Q / touch button).
+        this.handView.start(this.handViewState);
         break;
       case 'z':
         this.zoom.start(0);
