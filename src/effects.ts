@@ -1,23 +1,18 @@
-import { Material, Object3D, Mesh, Vector2, Group, PlaneGeometry, ShaderMaterial,
+import { Material, Object3D, Mesh, Group, PlaneGeometry, ShaderMaterial,
   AdditiveBlending, NormalBlending, CylinderGeometry, DoubleSide, BufferGeometry, BufferAttribute, Points, WebGLRenderer,
   Scene, Camera, Color, BoxGeometry, CanvasTexture, MeshLambertMaterial, RepeatWrapping } from 'three';
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 
-import { Size, Place } from './types';
+import { Size } from './types';
 
 // Optional shader effects. All of them are off by default and can be turned
 // on from the "Effects" menu.
 export const EFFECT_NAMES = [
-  'hoverGlow',
-  'discardPulse',
-  'ripple',
   'felt',
   'shadows',
   'ambientOcclusion',
-  'jadeBacks',
   'lacquerTable',
   'lightShaft',
-  'winter',
   'antiqueTiles',
   'colorGrade',
   'glossyTiles',
@@ -44,10 +39,6 @@ export type MaterialKind = 'tile' | 'piece' | 'table' | 'other';
 // Same as TABLE_WIDTH; not imported to avoid an import cycle.
 const TABLE_WIDTH = 174;
 const CENTER = (TABLE_WIDTH / 2).toFixed(1);
-const RIPPLE_DURATION = 2;
-
-// Back of the tile (and its coloured sides), see TileThingGroup.getUvChunk().
-const TILE_BACK_V = (4 * 40 / 256).toFixed(4);
 
 const NOISE_GLSL = `
 float fxHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -96,9 +87,6 @@ varying vec3 fxLocalPos;
 varying float vFxSeed;
 #endif
 uniform float fxTime;
-uniform float fxHover;
-uniform vec2 fxRippleCenter;
-uniform float fxRippleTime;
 ${NOISE_GLSL}
 vec2 fxVoronoi(vec2 p) {
   vec2 i = floor(p), f = fract(p);
@@ -135,15 +123,6 @@ const FRAGMENT_MAP = `
 }
 #endif
 
-#ifdef FX_JADE
-if (vMapUv.y >= ${TILE_BACK_V}) {
-  vec3 p = fxLocalPos * 0.35 + vFxSeed * vec3(3.1, 1.7, 2.3);
-  float vein = abs(sin(p.x * 2.0 + fxFbm3(p * 1.5) * 6.0));
-  vec3 jade = mix(vec3(0.02, 0.28, 0.16), vec3(0.25, 0.75, 0.5), fxFbm3(p * 0.7));
-  diffuseColor.rgb = mix(jade, vec3(0.75, 0.95, 0.85), smoothstep(0.2, 0.0, vein) * 0.5);
-}
-#endif
-
 #ifdef FX_ANTIQUE
 {
   vec3 c = diffuseColor.rgb;
@@ -159,62 +138,8 @@ if (vMapUv.y >= ${TILE_BACK_V}) {
 #endif
 `;
 
-// Runs once the normal is known: can bend it, and decides snow cover.
-const FRAGMENT_NORMAL = `
-float fxSlope = 0.0;
-float fxSnow = 0.0;
-
-#ifdef FX_RIPPLE
-if (fxRippleTime < ${RIPPLE_DURATION.toFixed(1)}) {
-  vec2 dp = fxWorldPos.xy - fxRippleCenter;
-  float r = length(dp) + 1e-4;
-  float t = fxRippleTime;
-  float env = smoothstep(t * 30.0, t * 30.0 - 8.0, r) * exp(-r * 0.045) * smoothstep(4.0, 7.0, r)
-    * (1.0 - smoothstep(0.6, ${RIPPLE_DURATION.toFixed(1)}, t));
-  fxSlope = cos(r * 1.1 - t * 20.0) * env;
-  vec3 nW = normalize(vec3(-dp / r * fxSlope * 0.9, 1.0));
-  normal = normalize((viewMatrix * vec4(nW, 0.0)).xyz);
-}
-#endif
-
-#ifdef FX_SNOW
-{
-  vec3 nW = inverseTransformDirection(normal, viewMatrix);
-  fxSnow = smoothstep(0.55, 0.9, nW.z) *
-    smoothstep(0.56, 0.66, fxFbm(fxWorldPos.xy * 0.18) + (fxWorldPos.z > 0.5 ? 0.15 : 0.0));
-#ifdef FX_TILE
-  // Keep the faces readable: snow only settles on the backs.
-  if (vMapUv.y < ${TILE_BACK_V}) fxSnow = 0.0;
-#endif
-}
-#endif
-`;
-
 // Runs on the final colour.
 const FRAGMENT_END = `
-#ifdef FX_RIPPLE
-gl_FragColor.rgb *= 1.0 + fxSlope * 0.35;
-gl_FragColor.rgb += vec3(0.7, 0.9, 0.8) * pow(max(fxSlope, 0.0), 3.0) * 0.25;
-#endif
-
-#ifdef FX_JADE
-if (vMapUv.y >= ${TILE_BACK_V}) {
-  vec3 n = normalize(vNormal), v = normalize(vViewPosition);
-  float fres = pow(1.0 - abs(dot(n, v)), 3.0);
-  vec3 l = normalize((viewMatrix * vec4(0.3, -0.5, 1.0, 0.0)).xyz);
-  float spec = pow(max(dot(reflect(-l, n), v), 0.0), 40.0);
-  gl_FragColor.rgb += vec3(0.1, 0.4, 0.25) * fres + spec * 0.6;
-}
-#endif
-
-#ifdef FX_SNOW
-{
-  vec3 snowCol = vec3(0.92, 0.96, 1.0) * (0.9 + 0.1 * fxNoise(fxWorldPos.xy * 8.0));
-  float glint = step(0.993, fxHash(floor(fxWorldPos.xy * 10.0)));
-  gl_FragColor.rgb = mix(gl_FragColor.rgb, snowCol + glint, fxSnow);
-}
-#endif
-
 #ifdef FX_SHAFT
 {
   float d = length(fxWorldPos.xy - vec2(${CENTER})) / 70.0;
@@ -236,13 +161,6 @@ if (vMapUv.y >= ${TILE_BACK_V}) {
   gl_FragColor.rgb = mix(gl_FragColor.rgb, room, fres) + spec * 0.35;
 }
 #endif
-
-#ifdef FX_HOVER
-{
-  float fres = pow(1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition))), 2.0);
-  gl_FragColor.rgb += vec3(1.0, 0.85, 0.35) * (0.25 + 1.2 * fres) * fxHover;
-}
-#endif
 `;
 
 class ShaderEffects {
@@ -251,26 +169,21 @@ class ShaderEffects {
 
   readonly uniforms = {
     fxTime: { value: 0 },
-    fxRippleCenter: { value: new Vector2() },
-    fxRippleTime: { value: 1000 },
   };
 
   private startTime = performance.now();
-  private rippleStart = -Infinity;
 
   // Add the effect code to a built-in material. The effects themselves are
   // switched on with defines (see applyDefines), so that a material with all
   // effects off compiles to the same shader as before.
   patch(material: Material, kind: MaterialKind): void {
     material.userData.fxKind = kind;
-    material.userData.fxHover = { value: 0 };
 
     const previous = material.onBeforeCompile;
     material.onBeforeCompile = (shader, renderer) => {
       previous.call(material, shader, renderer);
 
       Object.assign(shader.uniforms, this.uniforms);
-      shader.uniforms.fxHover = material.userData.fxHover;
 
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', `#include <common>\n${VERTEX_DECL}`)
@@ -278,7 +191,6 @@ class ShaderEffects {
       shader.fragmentShader = shader.fragmentShader
         .replace('#include <common>', `#include <common>\n${FRAGMENT_DECL}`)
         .replace('#include <map_fragment>', `#include <map_fragment>\n${FRAGMENT_MAP}`)
-        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>\n${FRAGMENT_NORMAL}`)
         .replace('#include <dithering_fragment>', `#include <dithering_fragment>\n${FRAGMENT_END}`);
     };
     // Different kinds share the onBeforeCompile source, so they need their
@@ -303,16 +215,10 @@ class ShaderEffects {
     });
   }
 
-  startRipple(x: number, y: number): void {
-    this.uniforms.fxRippleCenter.value.set(x, y);
-    this.rippleStart = this.now();
-  }
-
   tick(): void {
     const now = this.now();
     this.frame++;
     this.uniforms.fxTime.value = now;
-    this.uniforms.fxRippleTime.value = Math.min(now - this.rippleStart, 1000);
   }
 
   private now(): number {
@@ -324,13 +230,9 @@ class ShaderEffects {
     const s = this.settings;
     const wanted: Record<string, string> = {};
     if (kind === 'tile') wanted.FX_TILE = '';
-    if (s.hoverGlow && (kind === 'tile' || kind === 'piece')) wanted.FX_HOVER = '';
     if (s.felt && kind === 'table') wanted.FX_FELT = '';
-    if (s.ripple && kind === 'table') wanted.FX_RIPPLE = '';
-    if (s.jadeBacks && kind === 'tile') wanted.FX_JADE = '';
     if (s.antiqueTiles && kind === 'tile') wanted.FX_ANTIQUE = '';
     if (s.glossyTiles && kind === 'tile') wanted.FX_GLOSS = '';
-    if (s.winter && kind !== 'other') wanted.FX_SNOW = '';
     if (s.lightShaft) wanted.FX_SHAFT = kind === 'table' ? '1.0' : '0.4';
 
     const defines: Record<string, any> = {};
@@ -356,24 +258,6 @@ class ShaderEffects {
 
 export const shaderEffects = new ShaderEffects();
 
-const PLANE_VERTEX = `
-varying vec2 vP;
-void main() {
-  vP = position.xy;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}`;
-
-function overlayMaterial(fragmentShader: string, uniforms: Record<string, { value: any }> = {}): ShaderMaterial {
-  return new ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    blending: AdditiveBlending,
-    uniforms: { ...uniforms, fxTime: shaderEffects.uniforms.fxTime },
-    vertexShader: PLANE_VERTEX,
-    fragmentShader: `uniform float fxTime;\nvarying vec2 vP;\n${NOISE_GLSL}\n${fragmentShader}`,
-  });
-}
-
 function makePoints(count: number, position: (i: number) => [number, number, number],
   vertexShader: string, fragmentShader: string, additive: boolean): Points {
   const data = new Float32Array(count * 3);
@@ -394,15 +278,12 @@ function makePoints(count: number, position: (i: number) => [number, number, num
   return points;
 }
 
-// Extra objects drawn by some effects (glows, light cone, snow, lacquered table).
+// Extra objects drawn by some effects (light cone, lacquered table).
 export class EffectObjects {
   private group: Group;
   private table: Mesh;
 
-  private hoverGlow: Mesh;
-  private discardPulse: Mesh;
   private lightShaft: Group;
-  private snow: Points;
   private lacquer: Reflector | null = null;
   private rim: Group | null = null;
   private lacquerFrame = -1;
@@ -411,42 +292,16 @@ export class EffectObjects {
     this.group = group;
     this.table = table;
 
-    this.hoverGlow = new Mesh(new PlaneGeometry(20, 20), overlayMaterial(`
-      uniform vec2 uHalf;
-      void main() {
-        float d = max(fxBox(vP, uHalf), 0.0);
-        gl_FragColor = vec4(vec3(1.0, 0.8, 0.3) * smoothstep(5.0, 0.0, d) * 0.5, 1.0);
-      }`, { uHalf: { value: new Vector2() } }));
-
-    this.discardPulse = new Mesh(new PlaneGeometry(40, 40), overlayMaterial(`
-      uniform vec2 uHalf;
-      void main() {
-        float d = fxBox(vP, uHalf) - 0.6;
-        float a = smoothstep(1.5, 0.0, abs(d)) * 0.8;
-        for (int i = 0; i < 3; i++) {
-          float ph = fract(fxTime * 0.5 + float(i) / 3.0);
-          a += smoothstep(0.7, 0.0, abs(d - ph * 9.0)) * (1.0 - ph);
-        }
-        gl_FragColor = vec4(vec3(1.0, 0.75, 0.25) * a, 1.0);
-      }`, { uHalf: { value: new Vector2() } }));
-
     this.lightShaft = this.makeLightShaft();
-    this.snow = this.makeSnow();
 
-    for (const obj of [this.hoverGlow, this.discardPulse, this.lightShaft, this.snow]) {
-      obj.visible = false;
-      this.group.add(obj);
-    }
+    this.lightShaft.visible = false;
+    this.group.add(this.lightShaft);
   }
 
-  update(hovered: Place | null, discard: Place | null): void {
+  update(): void {
     const s = shaderEffects.settings;
 
-    this.place(this.hoverGlow, s.hoverGlow ? hovered : null);
-    this.place(this.discardPulse, s.discardPulse ? discard : null);
-
     this.lightShaft.visible = s.lightShaft;
-    this.snow.visible = s.winter;
 
     if (s.lacquerTable && this.lacquer === null) {
       this.lacquer = this.makeLacquer();
@@ -511,17 +366,6 @@ export class EffectObjects {
     }
     group.traverse(obj => obj.updateMatrixWorld());
     return group;
-  }
-
-  private place(obj: Mesh, place: Place | null): void {
-    obj.visible = place !== null;
-    if (place === null) {
-      return;
-    }
-    const material = obj.material as ShaderMaterial;
-    material.uniforms.uHalf.value.set(place.size.x / 2, place.size.y / 2);
-    obj.position.set(place.position.x, place.position.y, 0.05);
-    obj.updateMatrixWorld();
   }
 
   private makeLightShaft(): Group {
@@ -590,27 +434,6 @@ export class EffectObjects {
 
     group.traverse(obj => obj.updateMatrixWorld());
     return group;
-  }
-
-  private makeSnow(): Points {
-    let seed = 7;
-    const rnd = (): number => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    const snow = makePoints(900, () => [rnd() * 260 - 43, rnd() * 260 - 43, rnd() * 140], `
-      void main() {
-        float s = fract(sin(dot(position.xy, vec2(12.9, 78.2))) * 43758.5);
-        vec3 p = position;
-        p.z = mod(p.z - fxTime * (6.0 + 4.0 * s), 140.0);
-        p.x += sin(fxTime * 0.7 + position.y) * 2.0;
-        vec4 mv = modelViewMatrix * vec4(p, 1.0);
-        gl_PointSize = 260.0 / -mv.z;
-        gl_Position = projectionMatrix * mv;
-      }`, `
-      void main() {
-        float d = length(gl_PointCoord - 0.5);
-        gl_FragColor = vec4(1.0, 1.0, 1.0, smoothstep(0.5, 0.1, d) * 0.85);
-      }`, false);
-    snow.updateMatrixWorld();
-    return snow;
   }
 
   private makeLacquer(): Reflector {

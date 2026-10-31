@@ -17,7 +17,6 @@ export interface Render {
   held: boolean;
   temporary: boolean;
   bottom: boolean;
-  lastDiscard: boolean;
 }
 
 const MAX_SHADOWS = 300;
@@ -167,22 +166,9 @@ export class ObjectView {
     });
   }
 
-  onDiscard(place: Place): void {
-    shaderEffects.startRipple(place.position.x, place.position.y);
-  }
-
   updateThings(things: Array<Render>): void {
     this.selectedObjects.splice(0);
-    let hoveredPlace: Place | null = null;
-    let discardPlace: Place | null = null;
     for (const thing of things) {
-      if (thing.hovered && !thing.held && thing.type === ThingType.TILE && hoveredPlace === null) {
-        hoveredPlace = thing.place;
-      }
-      if (thing.lastDiscard && !thing.held) {
-        discardPlace = thing.place;
-      }
-
       const thingGroup = this.thingGroups.get(thing.type)!;
       const custom = thing.hovered || thing.selected || thing.held || thing.bottom;
       if (!custom && thingGroup.canSetSimple()) {
@@ -205,7 +191,6 @@ export class ObjectView {
       if (thing.hovered) {
         material.emissive.setHex(0x111111);
       }
-      material.userData.fxHover.value = thing.hovered ? 1 : 0;
 
       /*
       //LG Edit don't make bottom wall tiles darker
@@ -234,7 +219,7 @@ export class ObjectView {
       obj.updateMatrix();
       obj.updateMatrixWorld();
     }
-    this.effectObjects.update(hoveredPlace, discardPlace);
+    this.effectObjects.update();
   }
 
   updateDropShadows(places: Array<Place>): void {
