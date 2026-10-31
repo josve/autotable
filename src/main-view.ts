@@ -51,6 +51,104 @@ const GradeShader = {
     }`,
 };
 
+// Depth of field for the close-up of your own tiles. The table is a tilted
+// plane, so distance from the camera follows the screen height: a band around
+// the hand stays sharp and everything further away (up the screen) melts into
+// soft bokeh. Gathers samples on a golden-angle disc and boosts bright samples
+// so highlights bloom into round discs. Also adds a cinematic vignette and
+// letterbox bars.
+const FocusShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    amount: { value: 0 },
+    focusY: { value: 0.3 },
+    focusHalf: { value: 0.1 },
+    maxRadius: { value: 14 },
+    resolution: { value: new Vector2(1, 1) },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float amount;
+    uniform float focusY;
+    uniform float focusHalf;
+    uniform float maxRadius;
+    uniform vec2 resolution;
+    varying vec2 vUv;
+
+    const int SAMPLES = 48;
+
+    // Circle of confusion (0..1) for a screen position.
+    float coc(vec2 uv) {
+      float d = uv.y - focusY;
+      // Further away (above the hand) blurs strongly, the table edge in
+      // front only a little.
+      float far = smoothstep(focusHalf, focusHalf + 0.38, d);
+      float near = smoothstep(focusHalf, focusHalf + 0.25, -d) * 0.45;
+      // Slight falloff towards the sides, like a real lens.
+      float side = smoothstep(0.32, 0.6, abs(uv.x - 0.5)) * 0.35;
+      return clamp(max(far, near) + side, 0.0, 1.0);
+    }
+
+    void main() {
+      vec3 base = texture2D(tDiffuse, vUv).rgb;
+      float c = coc(vUv) * amount;
+      float radius = c * maxRadius;
+      vec3 color = base;
+
+      if (radius > 0.5) {
+        vec3 acc = vec3(0.0);
+        float total = 0.0;
+        for (int i = 0; i < SAMPLES; i++) {
+          float f = (float(i) + 0.5) / float(SAMPLES);
+          float r = sqrt(f) * radius;
+          float a = float(i) * 2.39996323;
+          vec2 uv = vUv + vec2(cos(a), sin(a)) * r / resolution;
+          vec3 s = texture2D(tDiffuse, uv).rgb;
+          // Don't let sharp things in focus bleed into the blurred background.
+          float w = smoothstep(0.0, 0.25, coc(uv)) * 0.9 + 0.1;
+          // Bright spots spread into bokeh discs.
+          float l = dot(s, vec3(0.2126, 0.7152, 0.0722));
+          w *= 1.0 + 6.0 * pow(max(l - 0.55, 0.0), 1.5);
+          acc += s * w;
+          total += w;
+        }
+        color = mix(base, acc / total, smoothstep(0.5, 2.0, radius));
+      }
+
+      // Vignette.
+      vec2 d = vUv - vec2(0.5, 0.45);
+      d.x *= 1.4;
+      color *= mix(1.0, 0.55, smoothstep(0.3, 0.9, length(d)) * amount);
+
+      // Letterbox bars sliding in.
+      float bar = 0.075 * amount;
+      float edge = 1.0 / resolution.y;
+      float inBar = 1.0 - smoothstep(bar - edge, bar, vUv.y) * smoothstep(bar - edge, bar, 1.0 - vUv.y);
+      color = mix(color, vec3(0.0), inBar);
+
+      gl_FragColor = vec4(color, 1.0);
+    }`,
+};
+
+// Centre of your own hand, in view group coordinates (the hand slot starts at
+// (46, 0) on a 174 wide table, tiles are 9 high when standing).
+const HAND_CENTER = new Vector3(-2, -85, 4.5);
+
+function smootherstep(t: number): number {
+  t = Math.min(1, Math.max(0, t));
+  return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
 // Effects that need the post-processing chain to be rebuilt.
 const COMPOSER_EFFECTS = ['ambientOcclusion', 'colorGrade', 'backdrop', 'bloom'] as const;
 
@@ -68,6 +166,7 @@ export class MainView {
   camera: Camera = null!;
   private composer: EffectComposer = null!;
   private outlinePass: OutlinePass = null!;
+  private focusPass: ShaderPass = null!;
 
   private width = 0;
   private height = 0;
@@ -220,6 +319,12 @@ export class MainView {
     if (this.effects.bloom) {
       this.composer.addPass(new UnrealBloomPass(new Vector2(w, h), 0.45, 0.5, 0.82));
     }
+    this.focusPass = new ShaderPass(FocusShader);
+    this.focusPass.enabled = false;
+    this.focusPass.uniforms.resolution.value.set(w * this.renderer.getPixelRatio(), h * this.renderer.getPixelRatio());
+    // Blur radius in pixels, relative to a 1080p high picture.
+    this.focusPass.uniforms.maxRadius.value = 22 * h * this.renderer.getPixelRatio() / 1080 + 4;
+    this.composer.addPass(this.focusPass);
     if (this.effects.colorGrade || this.effects.backdrop) {
       const grade = new ShaderPass(GradeShader);
       grade.uniforms.grade.value = this.effects.colorGrade ? 1 : 0;
@@ -251,41 +356,90 @@ export class MainView {
     }
   }
 
-  updateCamera(seat: number | null, lookDown: number, zoom: number, mouse2: Vector2 | null): void {
+  updateCamera(seat: number | null, lookDown: number, handView: number, zoom: number, mouse2: Vector2 | null): void {
+    const fromTop = seat === null;
+    const t = fromTop ? 0 : smootherstep(handView);
     if (this.perspective) {
-      this.updatePespectiveCamera(seat === null, lookDown, zoom, mouse2);
+      this.updatePespectiveCamera(fromTop, lookDown, t, zoom, mouse2);
     } else {
-      this.updateOrthographicCamera(seat === null, lookDown, zoom, mouse2);
+      this.updateOrthographicCamera(fromTop, lookDown, t, zoom, mouse2);
     }
 
     const angle = (seat ?? 0) * Math.PI * 0.5;
     this.viewGroup.rotation.set(0, 0, angle);
     this.viewGroup.updateMatrixWorld();
+
+    this.updateFocus(t);
+  }
+
+  // Keep the hand in the sharp band of the depth of field.
+  private updateFocus(t: number): void {
+    this.focusPass.enabled = t > 0.001;
+    if (!this.focusPass.enabled) {
+      return;
+    }
+    const project = (dy: number, dz: number): number => {
+      const v = HAND_CENTER.clone().add(new Vector3(0, dy, dz));
+      this.viewGroup.localToWorld(v);
+      v.project(this.camera);
+      return v.y * 0.5 + 0.5;
+    };
+    const bottom = project(2, -4.5);
+    const top = project(-2, 4.5);
+    this.focusPass.uniforms.focusY.value = (bottom + top) / 2;
+    this.focusPass.uniforms.focusHalf.value = Math.abs(top - bottom) / 2 + 0.03;
+    this.focusPass.uniforms.amount.value = t;
   }
 
   private updatePespectiveCamera(
     fromTop: boolean,
     lookDown: number,
+    handView: number,
     zoom: number,
     mouse2: Vector2 | null): void
   {
+    const camera = this.camera as PerspectiveCamera;
     if (fromTop) {
-      this.camera.position.set(0, 0, 400); //Original camera location
-      this.camera.rotation.set(0, 0, 0);
+      camera.position.set(0, 0, 400); //Original camera location
+      camera.rotation.set(0, 0, 0);
     } else {
       //this.camera.position.set(0, -World.WIDTH*1.44, World.WIDTH * 1.05); //Original camera location
-      this.camera.position.set(0, -World.WIDTH*1.30, World.WIDTH * 0.90); //LG Adjusted camera to new wider view port
+      camera.position.set(0, -World.WIDTH*1.30, World.WIDTH * 0.90); //LG Adjusted camera to new wider view port
       //this.camera.rotation.set(Math.PI * 0.3 - lookDown * 0.2, 0, 0);
-      this.camera.rotation.set(Math.PI * 0.3 - lookDown * 0.2 - 0.03, 0, 0); //LG Adjusted camera to center a little below the center
+      camera.rotation.set(Math.PI * 0.3 - lookDown * 0.2 - 0.03, 0, 0); //LG Adjusted camera to center a little below the center
+
+      if (handView > 0) {
+        // Swoop down to a low angle close to the hand, like a camera crane.
+        const pitch = 1.13;
+        const dist = 128;
+        const aim = HAND_CENTER.clone().add(new Vector3(0, 14, -1.5));
+        const dir = new Vector3(0, Math.sin(pitch), -Math.cos(pitch));
+        const target = aim.sub(dir.multiplyScalar(dist));
+        // Lift the path a little in the middle so it arcs instead of sliding.
+        const arc = Math.sin(handView * Math.PI) * 10;
+        camera.position.set(
+          lerp(camera.position.x, target.x, handView),
+          lerp(camera.position.y, target.y, handView),
+          lerp(camera.position.z, target.z, handView) + arc);
+        camera.rotation.x = lerp(camera.rotation.x, pitch, handView);
+        // A touch of roll during the move for a hand-held feel.
+        camera.rotation.z = Math.sin(handView * Math.PI) * 0.015;
+      }
+      const fov = lerp(28, 25, handView);
+      if (camera.fov !== fov) {
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+      }
+
       if (zoom !== 0) {
-        const dist = new Vector3(0, 1.37, -1).multiplyScalar(zoom * 55);
-        this.camera.position.add(dist);
+        const dist = new Vector3(0, 1.37, -1).multiplyScalar(zoom * 55 * (1 - handView));
+        camera.position.add(dist);
       }
       if (zoom > 0 && mouse2) {
         // NOTE: with multiplier larger than 0.5 it's possible to look at left
         // or right player's tiles!
-        this.camera.position.x += mouse2.x * zoom * World.WIDTH * 0.5;
-        this.camera.position.y += mouse2.y * zoom * World.WIDTH * 0.5;
+        camera.position.x += mouse2.x * zoom * World.WIDTH * 0.5 * (1 - handView);
+        camera.position.y += mouse2.y * zoom * World.WIDTH * 0.5 * (1 - handView);
       }
     }
   }
@@ -293,25 +447,37 @@ export class MainView {
   private updateOrthographicCamera(
     fromTop: boolean,
     lookDown: number,
+    handView: number,
     zoom: number,
     mouse2: Vector2 | null): void
   {
     if (fromTop) {
       this.camera.position.set(0, 0, 100);
       this.camera.rotation.set(0, 0, 0);
-      this.camera.scale.setScalar(1.55);
+      this.setOrthographicScale(1.55);
     } else {
+      // Camera centred on a point just above the hand, looking at 45 degrees.
+      const handY = HAND_CENTER.y + 12 - (174 - HAND_CENTER.z);
       this.camera.position.set(
         0,
-        -53 * lookDown - World.WIDTH,
+        lerp(-53 * lookDown - World.WIDTH, handY, handView),
         174);
       this.camera.rotation.set(Math.PI * 0.25, 0, 0);
-      this.camera.scale.setScalar(1 - 0.45 * zoom);
+      this.setOrthographicScale(lerp(1 - 0.45 * zoom, 0.55, handView));
 
       if (zoom > 0 && mouse2) {
-        this.camera.position.x += mouse2.x * zoom * World.WIDTH * 0.6;
-        this.camera.position.y += mouse2.y * zoom * World.WIDTH * 0.6;
+        this.camera.position.x += mouse2.x * zoom * World.WIDTH * 0.6 * (1 - handView);
+        this.camera.position.y += mouse2.y * zoom * World.WIDTH * 0.6 * (1 - handView);
       }
+    }
+  }
+
+  // Camera scale is ignored by three.js for the view matrix, use zoom instead.
+  private setOrthographicScale(scale: number): void {
+    const camera = this.camera as OrthographicCamera;
+    if (camera.zoom !== 1 / scale) {
+      camera.zoom = 1 / scale;
+      camera.updateProjectionMatrix();
     }
   }
 

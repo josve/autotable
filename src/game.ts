@@ -35,6 +35,8 @@ export class Game {
 
   private lookDown = new Animation(150);
   private zoom = new Animation(150);
+  // Cinematic close-up of your own tiles (hold Space).
+  private handView = new Animation(650);
   private lookDownState: number = 0;
   private zoomState: number = 0;
 
@@ -179,10 +181,12 @@ export class Game {
   private update(): void {
     this.lookDown.update();
     this.zoom.update();
+    this.handView.update();
 
     this.world.updateView();
     this.mainView.updateViewport();
-    this.mainView.updateCamera(this.world.seat, this.lookDown.pos, this.zoom.pos, this.mouseUi.zoomTarget());
+    this.mainView.updateCamera(
+      this.world.seat, this.lookDown.pos, this.handView.pos, this.zoom.pos, this.mouseUi.zoomTarget());
     this.mainView.updateOutline(this.objectView.selectedObjects);
     this.mouseUi.setCamera(this.mainView.camera);
     this.mouseUi.updateObjects();
@@ -219,7 +223,7 @@ export class Game {
         this.world.onFlip(-1, true);
         break;
       case ' ':
-        this.lookDown.start(1);
+        this.handView.start(1);
         break;
       case 'z':
         this.zoom.start(1);
@@ -242,7 +246,7 @@ export class Game {
 
     switch(event.key) {
       case ' ':
-        this.lookDown.start(0);
+        this.handView.start(0);
         break;
       case 'z':
         this.zoom.start(0);
