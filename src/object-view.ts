@@ -145,6 +145,27 @@ export class ObjectView {
     shaderEffects.refresh(this.mainGroup);
   }
 
+  // Raise texture filtering for all textures (sharper at grazing angles), or
+  // go back to each texture's own setting.
+  setAnisotropy(anisotropy: number | null): void {
+    this.mainGroup.traverse(obj => {
+      const material = (obj as Mesh).material;
+      if (!material || Array.isArray(material)) {
+        return;
+      }
+      const map = (material as MeshLambertMaterial).map;
+      if (!map) {
+        return;
+      }
+      map.userData.baseAnisotropy ??= map.anisotropy;
+      const wanted = anisotropy === null ? map.userData.baseAnisotropy : Math.max(anisotropy, map.userData.baseAnisotropy);
+      if (map.anisotropy !== wanted) {
+        map.anisotropy = wanted;
+        map.needsUpdate = true;
+      }
+    });
+  }
+
   updateThings(things: Array<Render>): void {
     this.selectedObjects.splice(0);
     for (const thing of things) {

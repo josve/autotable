@@ -130,6 +130,14 @@ export class Game {
       element.addEventListener('change', this.updateEffects.bind(this));
     }
     this.applyEffects(settings);
+
+    // The menu is long: keep it within the window so every option can be
+    // reached by scrolling.
+    const menu = document.querySelector('.effects-menu') as HTMLElement;
+    menu.parentElement!.addEventListener('shown.bs.dropdown', () => {
+      const top = menu.getBoundingClientRect().top;
+      menu.style.maxHeight = `${Math.max(window.innerHeight - top - 8, 150)}px`;
+    });
   }
 
   private updateEffects(): void {
@@ -144,6 +152,7 @@ export class Game {
   private applyEffects(settings: EffectSettings): void {
     shaderEffects.setSettings(settings);
     this.objectView.refreshEffects();
+    this.objectView.setAnisotropy(settings.sharpTextures ? this.mainView.maxAnisotropy() : null);
     this.mainView.setEffects(settings);
   }
 

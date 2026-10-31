@@ -1,8 +1,10 @@
-import { Scene, Camera, WebGLRenderer, Vector2, Vector3, Group, AmbientLight, DirectionalLight, PerspectiveCamera, OrthographicCamera, Mesh, Object3D, PlaneGeometry, ColorManagement, LinearSRGBColorSpace, WebGLRenderTarget, SpotLight, Light, VSMShadowMap } from 'three';
+import { Scene, Camera, WebGLRenderer, Vector2, Vector3, Group, AmbientLight, DirectionalLight, PerspectiveCamera, OrthographicCamera, Mesh, Object3D, PlaneGeometry, ColorManagement, LinearSRGBColorSpace, WebGLRenderTarget, SpotLight, Light, VSMShadowMap, CanvasTexture, Texture } from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
 import { World } from './world';
 import { EffectSettings, defaultEffects, shaderEffects } from './effects';
@@ -11,6 +13,46 @@ const RATIO = 1.85; //LG Adjusted camera to new wider view port (org Ratio 1.5)
 
 // Multisample anti-aliasing for the post-processing render targets.
 const MSAA_SAMPLES = 4;
+
+// Final colour pass: a gentle film-like contrast curve with a little more
+// saturation and warmth, and/or darkened corners.
+const GradeShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    grade: { value: 0 },
+    vignette: { value: 0 },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float grade;
+    uniform float vignette;
+    varying vec2 vUv;
+    void main() {
+      vec3 c = texture2D(tDiffuse, vUv).rgb;
+      if (grade > 0.5) {
+        c = clamp(c, 0.0, 1.0);
+        c = mix(c, c * c * (3.0 - 2.0 * c), 0.6);
+        float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+        c = mix(vec3(l), c, 1.15);
+        c *= vec3(1.05, 1.0, 0.93);
+      }
+      if (vignette > 0.5) {
+        vec2 d = vUv - 0.5;
+        d.x *= 1.3;
+        c *= mix(1.0, 0.45, smoothstep(0.35, 0.85, length(d)));
+      }
+      gl_FragColor = vec4(c, 1.0);
+    }`,
+};
+
+// Effects that need the post-processing chain to be rebuilt.
+const COMPOSER_EFFECTS = ['ambientOcclusion', 'colorGrade', 'backdrop', 'bloom'] as const;
 
 export class MainView {
   private main: HTMLElement;
@@ -35,6 +77,7 @@ export class MainView {
   // Lights with their normal intensity, dimmed when the lamp casts shadows.
   private lights: Array<[Light, number]> = [];
   private shadowLight: SpotLight = null!;
+  private backdrop: Texture | null = null;
 
   constructor(mainGroup: Group) {
     this.mainGroup = mainGroup;
@@ -94,7 +137,7 @@ export class MainView {
   }
 
   setEffects(effects: EffectSettings): void {
-    const aoChanged = effects.ambientOcclusion !== this.effects.ambientOcclusion;
+    const composerChanged = COMPOSER_EFFECTS.some(name => effects[name] !== this.effects[name]);
     this.effects = { ...effects };
 
     const shadows = effects.shadows;
@@ -105,16 +148,38 @@ export class MainView {
       light.intensity = shadows ? intensity * 0.45 : intensity;
     }
 
-    if (aoChanged) {
+    if (composerChanged) {
       this.setupRendering();
     } else {
       this.updateClearColor();
     }
   }
 
+  maxAnisotropy(): number {
+    return this.renderer.capabilities.getMaxAnisotropy();
+  }
+
   private updateClearColor(): void {
     // Darker room around the table when the lamp's light shaft is on.
     this.renderer.setClearColor(this.effects.lightShaft ? 0x14120e : 0x404040, 1);
+    this.scene.background = this.effects.backdrop ? this.getBackdrop() : null;
+  }
+
+  // Warm, dark room behind the table.
+  private getBackdrop(): Texture {
+    if (this.backdrop === null) {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 512;
+      const ctx = canvas.getContext('2d')!;
+      const gradient = ctx.createRadialGradient(256, 300, 40, 256, 300, 420);
+      gradient.addColorStop(0, '#3a2a1c');
+      gradient.addColorStop(0.6, '#1d150e');
+      gradient.addColorStop(1, '#070504');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      this.backdrop = new CanvasTexture(canvas);
+    }
+    return this.backdrop;
   }
 
   private setupRendering(): void {
@@ -152,6 +217,15 @@ export class MainView {
       this.composer.addPass(gtaoPass);
     }
     this.composer.addPass(this.outlinePass);
+    if (this.effects.bloom) {
+      this.composer.addPass(new UnrealBloomPass(new Vector2(w, h), 0.45, 0.5, 0.82));
+    }
+    if (this.effects.colorGrade || this.effects.backdrop) {
+      const grade = new ShaderPass(GradeShader);
+      grade.uniforms.grade.value = this.effects.colorGrade ? 1 : 0;
+      grade.uniforms.vignette.value = this.effects.backdrop ? 1 : 0;
+      this.composer.addPass(grade);
+    }
 
     // Force OutlinePass to precompile shadows, otherwise there is a pause when
     // you first select something.
