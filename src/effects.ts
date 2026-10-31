@@ -1,6 +1,6 @@
 import { Material, Object3D, Mesh, Vector2, Group, PlaneGeometry, ShaderMaterial,
   AdditiveBlending, NormalBlending, CylinderGeometry, DoubleSide, BufferGeometry, BufferAttribute, Points, WebGLRenderer,
-  Scene, Camera, Color } from 'three';
+  Scene, Camera, Color, BoxGeometry, CanvasTexture, MeshLambertMaterial, RepeatWrapping } from 'three';
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 
 import { Size, Place } from './types';
@@ -19,6 +19,12 @@ export const EFFECT_NAMES = [
   'lightShaft',
   'winter',
   'antiqueTiles',
+  'colorGrade',
+  'glossyTiles',
+  'sharpTextures',
+  'tableRim',
+  'backdrop',
+  'bloom',
 ] as const;
 
 export type EffectName = typeof EFFECT_NAMES[number];
@@ -217,6 +223,20 @@ if (vMapUv.y >= ${TILE_BACK_V}) {
 }
 #endif
 
+#ifdef FX_GLOSS
+{
+  // Clear lacquer on the tile: a sharp highlight from the lamp above, and a
+  // soft reflection of a bright ceiling and dark room towards grazing angles.
+  vec3 n = normalize(vNormal), v = normalize(vViewPosition);
+  float fres = 0.04 + 0.5 * pow(1.0 - abs(dot(n, v)), 5.0);
+  vec3 r = inverseTransformDirection(reflect(-v, n), viewMatrix);
+  vec3 room = mix(vec3(0.15, 0.13, 0.11), vec3(1.0, 0.97, 0.9), smoothstep(-0.1, 0.8, r.z));
+  vec3 l = normalize((viewMatrix * vec4(-0.3, -0.4, 1.0, 0.0)).xyz);
+  float spec = pow(max(dot(reflect(-l, n), v), 0.0), 60.0);
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, room, fres) + spec * 0.35;
+}
+#endif
+
 #ifdef FX_HOVER
 {
   float fres = pow(1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition))), 2.0);
@@ -309,6 +329,7 @@ class ShaderEffects {
     if (s.ripple && kind === 'table') wanted.FX_RIPPLE = '';
     if (s.jadeBacks && kind === 'tile') wanted.FX_JADE = '';
     if (s.antiqueTiles && kind === 'tile') wanted.FX_ANTIQUE = '';
+    if (s.glossyTiles && kind === 'tile') wanted.FX_GLOSS = '';
     if (s.winter && kind !== 'other') wanted.FX_SNOW = '';
     if (s.lightShaft) wanted.FX_SHAFT = kind === 'table' ? '1.0' : '0.4';
 
@@ -383,6 +404,7 @@ export class EffectObjects {
   private lightShaft: Group;
   private snow: Points;
   private lacquer: Reflector | null = null;
+  private rim: Group | null = null;
   private lacquerFrame = -1;
 
   constructor(group: Group, table: Mesh) {
@@ -434,6 +456,61 @@ export class EffectObjects {
       this.lacquer.visible = s.lacquerTable;
     }
     this.table.visible = !s.lacquerTable;
+
+    if (s.tableRim && this.rim === null) {
+      this.rim = this.makeRim();
+      this.group.add(this.rim);
+    }
+    if (this.rim !== null) {
+      this.rim.visible = s.tableRim;
+    }
+  }
+
+  private makeRim(): Group {
+    // Wood grain drawn once on a canvas.
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#5b3317';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    let seed = 3;
+    const rnd = (): number => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 120; i++) {
+      ctx.strokeStyle = `rgba(${20 + rnd() * 40},${8 + rnd() * 15},0,${0.15 + rnd() * 0.3})`;
+      ctx.lineWidth = 0.5 + rnd() * 2;
+      const y = rnd() * canvas.height;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      for (let x = 0; x <= canvas.width; x += 32) {
+        ctx.lineTo(x, y + Math.sin(x * 0.03 + i) * 3);
+      }
+      ctx.stroke();
+    }
+    const texture = new CanvasTexture(canvas);
+    texture.wrapS = texture.wrapT = RepeatWrapping;
+    texture.repeat.set(2, 1);
+    const material = new MeshLambertMaterial({ map: texture, color: 0xdddddd });
+
+    const group = new Group();
+    const half = (TABLE_WIDTH + Size.TILE.y) / 2;
+    const width = 9, height = 7;
+    const length = 2 * half + 2 * width;
+    const offset = half + width / 2;
+    for (let i = 0; i < 4; i++) {
+      const horizontal = i < 2;
+      const sign = i % 2 === 0 ? -1 : 1;
+      const box = new Mesh(new BoxGeometry(horizontal ? length : width, horizontal ? width : length, height), material);
+      box.position.set(
+        TABLE_WIDTH / 2 + (horizontal ? 0 : sign * offset),
+        TABLE_WIDTH / 2 + (horizontal ? sign * offset : 0),
+        height / 2 - 1.5);
+      box.castShadow = true;
+      box.receiveShadow = true;
+      group.add(box);
+    }
+    group.traverse(obj => obj.updateMatrixWorld());
+    return group;
   }
 
   private place(obj: Mesh, place: Place | null): void {
