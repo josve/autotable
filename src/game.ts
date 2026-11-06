@@ -153,7 +153,6 @@ export class Game {
   private applyEffects(settings: EffectSettings): void {
     shaderEffects.setSettings(settings);
     this.objectView.refreshEffects();
-    this.objectView.setAnisotropy(settings.sharpTextures ? this.mainView.maxAnisotropy() : null);
     this.mainView.setEffects(settings);
   }
 
