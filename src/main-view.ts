@@ -2,9 +2,7 @@ import { Scene, Camera, WebGLRenderer, Vector2, Vector3, Group, AmbientLight, Di
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
-import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
 import { World } from './world';
 import { EffectSettings, defaultEffects, shaderEffects } from './effects';
@@ -150,7 +148,7 @@ function lerp(a: number, b: number, t: number): number {
 }
 
 // Effects that need the post-processing chain to be rebuilt.
-const COMPOSER_EFFECTS = ['ambientOcclusion', 'colorGrade', 'backdrop', 'bloom'] as const;
+const COMPOSER_EFFECTS = ['colorGrade', 'backdrop'] as const;
 
 export class MainView {
   private main: HTMLElement;
@@ -254,13 +252,8 @@ export class MainView {
     }
   }
 
-  maxAnisotropy(): number {
-    return this.renderer.capabilities.getMaxAnisotropy();
-  }
-
   private updateClearColor(): void {
-    // Darker room around the table when the lamp's light shaft is on.
-    this.renderer.setClearColor(this.effects.lightShaft ? 0x14120e : 0x404040, 1);
+    this.renderer.setClearColor(0x404040, 1);
     this.scene.background = this.effects.backdrop ? this.getBackdrop() : null;
   }
 
@@ -308,17 +301,7 @@ export class MainView {
     this.outlinePass.visibleEdgeColor.setHex(0xffff99);
     this.outlinePass.hiddenEdgeColor.setHex(0x333333);
     this.composer.addPass(renderPass);
-    if (this.effects.ambientOcclusion) {
-      const gtaoPass = new GTAOPass(this.scene, this.camera, w, h);
-      gtaoPass.updateGtaoMaterial({ radius: 7, distanceExponent: 1, thickness: 6, scale: 2, samples: 16 });
-      gtaoPass.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 16 });
-      gtaoPass.blendIntensity = 2;
-      this.composer.addPass(gtaoPass);
-    }
     this.composer.addPass(this.outlinePass);
-    if (this.effects.bloom) {
-      this.composer.addPass(new UnrealBloomPass(new Vector2(w, h), 0.45, 0.5, 0.82));
-    }
     this.focusPass = new ShaderPass(FocusShader);
     this.focusPass.enabled = false;
     this.focusPass.uniforms.resolution.value.set(w * this.renderer.getPixelRatio(), h * this.renderer.getPixelRatio());

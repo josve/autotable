@@ -1,6 +1,5 @@
-import { Material, Object3D, Mesh, Group, PlaneGeometry, ShaderMaterial,
-  AdditiveBlending, NormalBlending, CylinderGeometry, DoubleSide, BufferGeometry, BufferAttribute, Points, WebGLRenderer,
-  Scene, Camera, Color, BoxGeometry, CanvasTexture, MeshLambertMaterial, RepeatWrapping } from 'three';
+import { Material, Object3D, Mesh, Group, PlaneGeometry, WebGLRenderer,
+  Scene, Camera, Color } from 'three';
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 
 import { Size } from './types';
@@ -10,16 +9,11 @@ import { Size } from './types';
 export const EFFECT_NAMES = [
   'felt',
   'shadows',
-  'ambientOcclusion',
   'lacquerTable',
-  'lightShaft',
   'antiqueTiles',
   'colorGrade',
   'glossyTiles',
-  'sharpTextures',
-  'tableRim',
   'backdrop',
-  'bloom',
 ] as const;
 
 export type EffectName = typeof EFFECT_NAMES[number];
@@ -140,14 +134,6 @@ const FRAGMENT_MAP = `
 
 // Runs on the final colour.
 const FRAGMENT_END = `
-#ifdef FX_SHAFT
-{
-  float d = length(fxWorldPos.xy - vec2(${CENTER})) / 70.0;
-  float pool = mix(1.3, 0.5, smoothstep(0.2, 1.1, d));
-  gl_FragColor.rgb *= mix(1.0, pool, FX_SHAFT);
-}
-#endif
-
 #ifdef FX_GLOSS
 {
   // Clear lacquer on the tile: a sharp highlight from the lamp above, and a
@@ -233,7 +219,6 @@ class ShaderEffects {
     if (s.felt && kind === 'table') wanted.FX_FELT = '';
     if (s.antiqueTiles && kind === 'tile') wanted.FX_ANTIQUE = '';
     if (s.glossyTiles && kind === 'tile') wanted.FX_GLOSS = '';
-    if (s.lightShaft) wanted.FX_SHAFT = kind === 'table' ? '1.0' : '0.4';
 
     const defines: Record<string, any> = {};
     let changed = false;
@@ -258,50 +243,21 @@ class ShaderEffects {
 
 export const shaderEffects = new ShaderEffects();
 
-function makePoints(count: number, position: (i: number) => [number, number, number],
-  vertexShader: string, fragmentShader: string, additive: boolean): Points {
-  const data = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    data.set(position(i), 3 * i);
-  }
-  const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new BufferAttribute(data, 3));
-  const points = new Points(geometry, new ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    blending: additive ? AdditiveBlending : NormalBlending,
-    uniforms: { fxTime: shaderEffects.uniforms.fxTime },
-    vertexShader: `uniform float fxTime;\n${vertexShader}`,
-    fragmentShader,
-  }));
-  points.frustumCulled = false;
-  return points;
-}
-
-// Extra objects drawn by some effects (light cone, lacquered table).
+// Extra objects drawn by some effects (lacquered table).
 export class EffectObjects {
   private group: Group;
   private table: Mesh;
 
-  private lightShaft: Group;
   private lacquer: Reflector | null = null;
-  private rim: Group | null = null;
   private lacquerFrame = -1;
 
   constructor(group: Group, table: Mesh) {
     this.group = group;
     this.table = table;
-
-    this.lightShaft = this.makeLightShaft();
-
-    this.lightShaft.visible = false;
-    this.group.add(this.lightShaft);
   }
 
   update(): void {
     const s = shaderEffects.settings;
-
-    this.lightShaft.visible = s.lightShaft;
 
     if (s.lacquerTable && this.lacquer === null) {
       this.lacquer = this.makeLacquer();
@@ -311,129 +267,6 @@ export class EffectObjects {
       this.lacquer.visible = s.lacquerTable;
     }
     this.table.visible = !s.lacquerTable;
-
-    if (s.tableRim && this.rim === null) {
-      this.rim = this.makeRim();
-      this.group.add(this.rim);
-    }
-    if (this.rim !== null) {
-      this.rim.visible = s.tableRim;
-    }
-  }
-
-  private makeRim(): Group {
-    // Wood grain drawn once on a canvas.
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 64;
-    const ctx = canvas.getContext('2d')!;
-    ctx.fillStyle = '#5b3317';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    let seed = 3;
-    const rnd = (): number => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < 120; i++) {
-      ctx.strokeStyle = `rgba(${20 + rnd() * 40},${8 + rnd() * 15},0,${0.15 + rnd() * 0.3})`;
-      ctx.lineWidth = 0.5 + rnd() * 2;
-      const y = rnd() * canvas.height;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      for (let x = 0; x <= canvas.width; x += 32) {
-        ctx.lineTo(x, y + Math.sin(x * 0.03 + i) * 3);
-      }
-      ctx.stroke();
-    }
-    const texture = new CanvasTexture(canvas);
-    texture.wrapS = texture.wrapT = RepeatWrapping;
-    texture.repeat.set(2, 1);
-    const material = new MeshLambertMaterial({ map: texture, color: 0xdddddd });
-
-    const group = new Group();
-    const half = (TABLE_WIDTH + Size.TILE.y) / 2;
-    const width = 9, height = 7;
-    const length = 2 * half + 2 * width;
-    const offset = half + width / 2;
-    for (let i = 0; i < 4; i++) {
-      const horizontal = i < 2;
-      const sign = i % 2 === 0 ? -1 : 1;
-      const box = new Mesh(new BoxGeometry(horizontal ? length : width, horizontal ? width : length, height), material);
-      box.position.set(
-        TABLE_WIDTH / 2 + (horizontal ? 0 : sign * offset),
-        TABLE_WIDTH / 2 + (horizontal ? sign * offset : 0),
-        height / 2 - 1.5);
-      box.castShadow = true;
-      box.receiveShadow = true;
-      group.add(box);
-    }
-    group.traverse(obj => obj.updateMatrixWorld());
-    return group;
-  }
-
-  private makeLightShaft(): Group {
-    const group = new Group();
-    const height = 170;
-    const bottom = 58, top = 8;
-
-    const cone = new Mesh(new CylinderGeometry(top, bottom, height, 64, 1, true), new ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: AdditiveBlending,
-      side: DoubleSide,
-      uniforms: { fxTime: shaderEffects.uniforms.fxTime },
-      vertexShader: `
-        varying vec3 vL; varying vec3 vW; varying vec3 vN;
-        void main() {
-          vL = position;
-          vN = normalize(mat3(modelMatrix) * normal);
-          vW = (modelMatrix * vec4(position, 1.0)).xyz;
-          gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0);
-        }`,
-      fragmentShader: `
-        uniform float fxTime;
-        varying vec3 vL; varying vec3 vW; varying vec3 vN;
-        ${NOISE_GLSL}
-        void main() {
-          float h = (vL.y + ${(height / 2).toFixed(1)}) / ${height.toFixed(1)};
-          float ang = atan(vL.z, vL.x);
-          float streak = 0.55 + 0.45 * fxFbm(vec2(ang * 6.0 + fxTime * 0.05, h * 1.5));
-          vec3 V = normalize(cameraPosition - vW);
-          float thick = pow(abs(dot(normalize(vN), V)), 1.5);
-          float a = 0.22 * streak * thick * smoothstep(0.0, 0.3, h) * (0.5 + 0.5 * h);
-          gl_FragColor = vec4(vec3(1.0, 0.85, 0.6) * a, 1.0);
-        }`,
-    }));
-    cone.rotation.x = Math.PI / 2;
-    cone.position.set(TABLE_WIDTH / 2, TABLE_WIDTH / 2, height / 2);
-    cone.updateMatrix();
-    group.add(cone);
-
-    let seed = 1;
-    const rnd = (): number => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    const dust = makePoints(500, () => {
-      const h = rnd() * 150;
-      const r = Math.sqrt(rnd()) * (top + (bottom - top) * (1 - h / height));
-      const a = rnd() * Math.PI * 2;
-      return [TABLE_WIDTH / 2 + Math.cos(a) * r, TABLE_WIDTH / 2 + Math.sin(a) * r, h];
-    }, `
-      varying float vS;
-      void main() {
-        vS = fract(sin(dot(position.xy, vec2(12.9, 78.2))) * 43758.5);
-        vec3 p = position;
-        p.x += sin(fxTime * 0.3 + vS * 20.0) * 1.5;
-        p.y += cos(fxTime * 0.25 + vS * 13.0) * 1.5;
-        p.z = mod(p.z + fxTime * (0.5 + vS), 150.0);
-        vec4 mv = modelViewMatrix * vec4(p, 1.0);
-        gl_PointSize = (120.0 + 200.0 * vS) / -mv.z;
-        gl_Position = projectionMatrix * mv;
-      }`, `
-      varying float vS;
-      void main() {
-        float d = length(gl_PointCoord - 0.5);
-        gl_FragColor = vec4(vec3(1.0, 0.9, 0.7) * smoothstep(0.5, 0.0, d) * (0.5 + 0.8 * vS), 1.0);
-      }`, true);
-    group.add(dust);
-
-    group.traverse(obj => obj.updateMatrixWorld());
-    return group;
   }
 
   private makeLacquer(): Reflector {
@@ -482,8 +315,7 @@ export class EffectObjects {
     lacquer.position.set(TABLE_WIDTH / 2, TABLE_WIDTH / 2, 0);
     lacquer.updateMatrixWorld();
 
-    // The composer renders the scene several times per frame (outline,
-    // ambient occlusion); render the reflection only for the first one.
+    // The composer renders the scene several times per frame (e.g. outline); render the reflection only for the first one.
     const render = lacquer.onBeforeRender;
     lacquer.onBeforeRender = (renderer: WebGLRenderer, scene: Scene, camera: Camera, ...rest: any[]) => {
       if (this.lacquerFrame === shaderEffects.frame) {
